@@ -1,0 +1,69 @@
+{
+  "appId": "com.forge.suite",
+  "productName": "Forge FPS Suite",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "extraMetadata": {
+    "main": "toolsuite/desktop/main.cjs"
+  },
+  "files": [
+    "dist/**/*",
+    "toolsuite",
+    "package.json",
+    "index.html",
+    "editor.html",
+    "vite.config.js",
+    "AGENTS.md",
+    "UI_GUIDE.md",
+    ".gitignore",
+    "src",
+    "public"
+  ],
+  "asarUnpack": [
+    "index.html",
+    "editor.html",
+    "vite.config.js",
+    "AGENTS.md",
+    "UI_GUIDE.md",
+    ".gitignore",
+    "src",
+    "public",
+    "package.json",
+    "toolsuite"
+  ],
+  "extraResources": [
+    { "from": "build/template/game-package.json", "to": "app.asar.unpacked/game-package.json" },
+    { "from": "build/tools/node.exe", "to": "tools/node.exe" },
+    { "from": "node_modules", "to": "toolchain/node_modules", "filter": ["**/*", "!**/.cache/**/*"] },
+    { "from": "build/icon.ico", "to": "icon.ico" }
+  ],
+  "asar": true,
+  "electronDist": "node_modules/electron/dist",
+  "win": {
+    "icon": "build/icon.ico",
+    "signExecutable": false,
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Forge FPS Suite",
+    "guid": "6b1f9a4e-2c73-4f18-9a55-0d1c7e4b8a31",
+    "deleteAppDataOnUninstall": false,
+    "uninstallDisplayName": "Forge FPS Suite ${version}"
+  },
+  "artifactName": "Forge-FPS-Suite-${version}-Setup.${ext}"
+}

@@ -1,0 +1,133 @@
+ok   opens a project through the native bridge — D:\AppData\Roaming\Forge FPS Suite\verification\.forge-test-ui-281546d3
+ok   loads authored project data — 6 screens
+ok   lists project assets — 7 assets
+ok   project dialog opens as a modal — no dialog content
+ok   project dialog shows the open project — D:\AppData\Roaming\Forge FPS Suite\verification\.forge-test-ui-281546d3
+ok   project dialog offers build and create
+ok   project dialog lists recents — ProjectsClose.forge-test-ui-281546d3D:\AppData\Roaming\Forge FPS Suite\verificat
+ok   project dialog exposes Close and editor exposes Quit
+ok   no stock window menu bar
+ok   project dialog closes on backdrop click
+ok   weapon list is headed WEAPONS — WEAPONS
+ok   weapon rows match the project — 1 rows
+ok   weapon context menu opens — ★ Starting weapon / Rename… / Duplicate / Open in view / Delete
+ok   weapon context menu has the verbs — ★ Starting weapon / Rename… / Duplicate / Open in view / Delete
+ok   Escape closes the context menu
+ok   edits reuse the live viewmodel (no GLB reload)
+ok   pose mode offers Apply
+ok   pose mode gizmo is attached to the model — Group
+ok   Apply stores the dragged pose — [0.2,-0.1,0.4]
+ok   muzzle drag writes back to the weapon — [0.05,0.02,0.6]
+ok   new image element gets a human name — Image 1
+ok   layer row shows type and name — SCREENS◈ Default HUD◈ Domination overlay◈ TDM overlay▣ Main menu▣ Pause menu▣ Settings menu+ Add screenLAYERS+ text+ pan
+ok   image inspector offers an asset picker
+ok   image inspector offers upload and clear
+ok   project image is listed for the picker — ["src/assets/images/reticle.png"]
+ok   image asset picker writes the src — src/assets/images/reticle.png
+ok   image renders in the live preview — 1x1
+ok   uploaded font appears in the element font list
+ok   element font is applied — Forge Sans
+ok   font face reaches the shadow DOM
+ok   layer context menu opens — Select layer / Bring forward / Send backward / Duplicate / Delete
+ok   style template writes scoped CSS — c*/[data-element="image-a4586c2b-340b-42e4-9d49-8118d6bb176c"]{text-shadow:0 0 8px currentColor,0 0 22px currentColor;}
+
+ok   template rule targets the element
+ok   screen inspector shows a fonts panel
+ok   screen inspector shows style templates
+ok   screen inspector exposes the css editor
+ok   custom template is stored — {"id":"tpl-66893c29-bca0-4974-84ee-057cf1539fd0","name":"UI test style","css":".forge-test{color:#fff;}"}
+ok   custom template writes a screen rule — entColor,0 0 22px currentColor;}
+/*forge:tpl-66893c29-bca0-4974-84ee-057cf1539fd0:screen:hud*/[data-screen="hud"]{.forge-test{color:#fff;}}
+
+ok   custom template context menu deletes — Apply here / Delete template
+ok   template deleted
+ok   font context menu renames or deletes — Rename… / Delete
+ok   level editor opens its 3D viewport
+ok   Play and Stop are available from the global toolbar
+ok   persistent dock and resizable side panels are present
+ok   adding a box writes a spec — 1 → 2 geometry specs
+ok   hierarchy context menu opens — Select / Frame selection
+ok   entity context menu duplicates and deletes — Select / Frame selection / Duplicate / Save as prefab / Delete
+ok   level preview target is the saved file — ui-test
+ok   project edits retain scene visuals
+ok   transform edits reuse the scene object
+ok   gizmo dragging disables orbit
+ok   gizmo release restores orbit
+ok   hide affects editor visual only
+ok   locked object detaches gizmo
+ok   Escape closes Projects
+ok   Save as prefab stores a validated reusable object
+ok   prefab instantiation creates a unique scene object
+ok   trigger inspector creates built-in actions
+ok   hierarchy search filters object rows
+ok   scene settings offer Team Deathmatch — sandbox,domination,tdm
+ok   game mode is stored on the scene — tdm
+ok   match settings panel is available
+ok   score limit is stored in match settings — {"scoreLimit":5}
+ok   respawn delay is stored in match settings — {"scoreLimit":5,"respawnDelay":1.5}
+ok   friendly fire toggle is stored — {"scoreLimit":5,"respawnDelay":1.5,"friendlyFire":true}
+ok   scene settings offer at least two sky presets — clear-day,overcast,golden-hour,night-city,none
+ok   sky presets reach the editor viewport — dome=true env=true
+ok   sky preset is stored on the scene — golden-hour
+ok   changing the sky swaps the live dome — f0a765
+ok   render quality presets are offered — low,medium,high,ultra
+ok   quality preset stores its numbers — {"quality":"medium","shadows":true,"shadowSize":1024,"toneMapping":"aces","exposure":1,"pixelRatio":1}
+ok   tone mapping is stored — filmic
+ok   exposure is stored — 1.4
+ok   shadows can be turned off — {"quality":"medium","shadows":false,"shadowSize":1024,"toneMapping":"filmic","exposure":1.4,"pixelRatio":1}
+ok   shadows can be turned back on — {"quality":"medium","shadows":true,"shadowSize":1024,"toneMapping":"filmic","exposure":1.4,"pixelRatio":1}
+ok   adding a bot writes a bot spec — {"id":"bots-48f4571f-39d6-4e27-850c-5a110e62b430","name":"Bot 1","position":[0,1.2,-8],"yaw":0,"team":"B","skill":0.5}
+ok   bot appears in the hierarchy
+ok   bot inspector offers skill tuning
+ok   bot skill is stored — [{"id":"bots-48f4571f-39d6-4e27-850c-5a110e62b430","name":"Bot 1","position":[0,1.2,-8],"yaw":0,"team":"B","skill":0.8}]
+ok   bot team is editable — A
+ok   a second bot can be added — 2 bots
+ok   bots can be split across teams — ["A","B"]
+ok   collider picker offers mesh and hull — box,mesh,hull,none
+ok   mesh collider is stored on the object — mesh
+ok   model asset is stored for collider building — src/assets/models/weapons/M4.glb
+ok   a prop can use a hull collider with mass — {"c":"hull","m":4}
+ok   animation auto-key stores a runtime-compatible track
+ok   animation preview uses the runtime viewmodel hierarchy
+ok   game properties workspace shows the output summary — OutputGameUI test gameExecutableUI test game.exeInstallerUI-test-game-v${version
+ok   game name is stored on the project — {"name":"UI Test Arena","description":"","publisher":"","version":"","icon":"","shortcutName":"","createDesktopShortcut":true,"createStartMenuShortcut":true,"installForAllUsers":false}
+ok   publisher, version and shortcut options are stored — {"name":"UI Test Arena","description":"Built by the desktop suite.","publisher":"Forge QA","version":"4.5.6","icon":"","shortcutName":"UI Test Arena DM","createDesktopShortcut":false,"createStartMenuS
+ok   output preview names the installer file — OutputGameUI Test ArenaExecutableUI Test Arena.exeInstallerUI-Test-Arena-v${version}-Setup.${ext}Version4.5.6PublisherForge QADesktop shortcutnoStart menu short
+ok   output preview lists the publisher
+ok   an illegal game name is refused and the old one kept — UI Test Arena
+ok   reset restores the defaults but keeps the authored name
+ok   Save clears both dirty flags — {"project":false,"level":false}
+ok   Save reports success — Project and scene saved.
+ok   level file written to the project
+ok   project file written to the project
+ok   fresh project has no prior build
+ok   live Play boots before Build with current project data — UI test game
+ok   authored trigger actions execute in the real game — {"health":65,"ammoAdded":30,"message":"Action test"}
+ok   the saved team match runs in the game — {"bots":2,"teams":["A","B"],"phase":"countdown","scoreBefore":0,"scoreAfter":1,"playerName":"You","enemyName":"Bot 2","feed":"You>Bot 2","hudKills":1,"hudScoreA":1,"hudStatus":"Starting in 3","hudTeam
+ok   shooting a bot scores the kill for the player team — {"bots":2,"teams":["A","B"],"phase":"countdown","scoreBefore":0,"scoreAfter":1,"playerName":"You","enemyName":"Bot 2","feed":"You>Bot 2","hudKills":1,"hudScoreA":1,"hudStatus":"Starting in 3","hudTeam
+ok   the kill is recorded in the feed and on the HUD — {"bots":2,"teams":["A","B"],"phase":"countdown","scoreBefore":0,"scoreAfter":1,"playerName":"You","enemyName":"Bot 2","feed":"You>Bot 2","hudKills":1,"hudScoreA":1,"hudStatus":"Starting in 3","hudTeam
+ok   the eliminated bot is dead until it respawns — {"bots":2,"teams":["A","B"],"phase":"countdown","scoreBefore":0,"scoreAfter":1,"playerName":"You","enemyName":"Bot 2","feed":"You>Bot 2","hudKills":1,"hudScoreA":1,"hudStatus":"Starting in 3","hudTeam
+ok   the game runs the authored sky with an environment probe — {"sky":"golden-hour","render":{"quality":"medium","shadows":true,"shadowSize":1024,"pixelRatio":1,"toneMapping":"filmic","exposure":1.4},"shadowsFitted":true,"dome":true,"environment":true,"toneMappin
+ok   tone mapping and shadows are active in the real game — {"sky":"golden-hour","render":{"quality":"medium","shadows":true,"shadowSize":1024,"pixelRatio":1,"toneMapping":"filmic","exposure":1.4},"shadowsFitted":true,"dome":true,"environment":true,"toneMappin
+ok   the sun casts a fitted shadow map — {"sky":"golden-hour","render":{"quality":"medium","shadows":true,"shadowSize":1024,"pixelRatio":1,"toneMapping":"filmic","exposure":1.4},"shadowsFitted":true,"dome":true,"environment":true,"toneMappin
+ok   level geometry both casts and receives shadows — {"sky":"golden-hour","render":{"quality":"medium","shadows":true,"shadowSize":1024,"pixelRatio":1,"toneMapping":"filmic","exposure":1.4},"shadowsFitted":true,"dome":true,"environment":true,"toneMappin
+ok   the loading screen is gone once the authored menu is mounted — {"sky":"golden-hour","render":{"quality":"medium","shadows":true,"shadowSize":1024,"pixelRatio":1,"toneMapping":"filmic","exposure":1.4},"shadowsFitted":true,"dome":true,"environment":true,"toneMappin
+ok   imported models build real triangle collision in game — {"models":2,"meshColliders":1,"hullColliders":1,"triangles":10214,"props":1,"propMode":"hull","propMass":4,"bodies":4}
+ok   dynamic props use a convex hull of the model — {"models":2,"meshColliders":1,"hullColliders":1,"triangles":10214,"props":1,"propMode":"hull","propMass":4,"bodies":4}
+ok   Stop closes Play and resets state
+ok   incomplete folder is reported, not refused — ["index.html","vite.config.js","package.json","src/main.js","src/core/Engine.js","src/authoring/Project.js","public/authoring/project.json","public/levels","toolsuite/index.html","toolsuite/src/app.js
+ok   repair copies the missing template parts — ["index.html","editor.html","vite.config.js","UI_GUIDE.md","src/assets/models/weapons/M4.glb","src/assets/sound/hitmarker.mp3","src/assets/sound/jump.mp3","src/assets/sound/m4.mp3","src/assets/sound/m
+ok   repaired folder can now be opened — ok
+ok   repair left the existing assets folder alone
+ok   game build produced a playable bundle
+ok   game build produced an installer
+ok   game build produced a runnable game, not installer
+ok   the installer is named after the authored game properties — UI-Test-Arena-v4.5.6-Setup.exe
+ok   the built manifest carries the authored version and publisher — 4.5.6 / Forge QA
+ok   the generated build config carries the shortcut settings — {"oneClick":false,"perMachine":false,"allowToChangeInstallationDirectory":true,"createDesktopShortcut":false,"createStartMenuShortcut":true,"guid":"b37006ec-087a-4e8a-ab94-aac9e5481451","deleteAppData
+ok   the built executable is named after the game properties — UI Test Arena.exe
+ok   actual built game initializes from its packaged assets — Game shell smoke test passed: UI test game initialized physics, world and HUD from the packaged build.
+
+ok   game preview initializes physics, world and HUD on saved scene — Main scene
+
+Desktop UI test passed: 127 checks across projects, weapons, HUD, levels and the built game.

@@ -1,0 +1,535 @@
+{
+  "version": 1,
+  "name": "Team Deathmatch",
+  "mode": "tdm",
+  "playerTeam": "A",
+  "match": {
+    "scoreLimit": 15,
+    "timeLimit": 600,
+    "respawnDelay": 3,
+    "countdown": 3,
+    "teams": [
+      "A",
+      "B"
+    ],
+    "teamNames": {
+      "A": "Alpha",
+      "B": "Bravo"
+    },
+    "friendlyFire": false
+  },
+  "playerSpawn": {
+    "position": [
+      0,
+      1.2,
+      14
+    ],
+    "yaw": 0
+  },
+  "environment": {
+    "background": "#0e1520",
+    "fogNear": 45,
+    "fogFar": 190,
+    "sky": "overcast",
+    "render": {
+      "quality": "high",
+      "shadows": true,
+      "shadowSize": 2048,
+      "toneMapping": "aces",
+      "exposure": 1.05
+    }
+  },
+  "lights": [
+    {
+      "id": "tdm-sky",
+      "name": "Sky light",
+      "type": "hemisphere",
+      "color": "#cfe0ff",
+      "groundColor": "#4b525c",
+      "intensity": 1.8
+    },
+    {
+      "id": "tdm-sun",
+      "name": "Sun",
+      "type": "directional",
+      "color": "#fff4e0",
+      "intensity": 2.6,
+      "position": [
+        14,
+        22,
+        8
+      ]
+    },
+    {
+      "id": "tdm-lamp-a",
+      "name": "Lamp A",
+      "type": "point",
+      "color": "#8fd7ff",
+      "intensity": 90,
+      "distance": 26,
+      "decay": 2,
+      "position": [
+        -9,
+        5,
+        0
+      ]
+    },
+    {
+      "id": "tdm-lamp-b",
+      "name": "Lamp B",
+      "type": "point",
+      "color": "#ffb27f",
+      "intensity": 90,
+      "distance": 26,
+      "decay": 2,
+      "position": [
+        9,
+        5,
+        0
+      ]
+    }
+  ],
+  "geometry": [
+    {
+      "id": "tdm-floor",
+      "name": "Floor",
+      "type": "box",
+      "position": [
+        0,
+        -0.5,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        44,
+        1,
+        44
+      ],
+      "material": {
+        "color": "#7f8894",
+        "grid": true,
+        "gridRepeat": 22
+      }
+    },
+    {
+      "id": "tdm-wall-n",
+      "name": "Wall north",
+      "type": "box",
+      "position": [
+        0,
+        3,
+        -22
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        44,
+        6,
+        1
+      ],
+      "material": {
+        "color": "#8f98a5"
+      }
+    },
+    {
+      "id": "tdm-wall-s",
+      "name": "Wall south",
+      "type": "box",
+      "position": [
+        0,
+        3,
+        22
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        44,
+        6,
+        1
+      ],
+      "material": {
+        "color": "#8f98a5"
+      }
+    },
+    {
+      "id": "tdm-wall-w",
+      "name": "Wall west",
+      "type": "box",
+      "position": [
+        -22,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        6,
+        44
+      ],
+      "material": {
+        "color": "#8f98a5"
+      }
+    },
+    {
+      "id": "tdm-wall-e",
+      "name": "Wall east",
+      "type": "box",
+      "position": [
+        22,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        6,
+        44
+      ],
+      "material": {
+        "color": "#8f98a5"
+      }
+    },
+    {
+      "id": "tdm-ramp-a",
+      "name": "Ramp A",
+      "type": "box",
+      "position": [
+        -12,
+        1,
+        -12
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.12
+      ],
+      "scale": [
+        10,
+        2,
+        6
+      ],
+      "material": {
+        "color": "#78828f"
+      }
+    },
+    {
+      "id": "tdm-ramp-b",
+      "name": "Ramp B",
+      "type": "box",
+      "position": [
+        12,
+        1,
+        12
+      ],
+      "rotation": [
+        0,
+        0,
+        0.12
+      ],
+      "scale": [
+        10,
+        2,
+        6
+      ],
+      "material": {
+        "color": "#78828f"
+      }
+    },
+    {
+      "id": "tdm-pillar-1",
+      "name": "Pillar 1",
+      "type": "box",
+      "position": [
+        -6,
+        2.5,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        2,
+        5,
+        2
+      ],
+      "material": {
+        "color": "#6d7784"
+      }
+    },
+    {
+      "id": "tdm-pillar-2",
+      "name": "Pillar 2",
+      "type": "box",
+      "position": [
+        6,
+        2.5,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        2,
+        5,
+        2
+      ],
+      "material": {
+        "color": "#6d7784"
+      }
+    },
+    {
+      "id": "tdm-catwalk",
+      "name": "Catwalk",
+      "type": "box",
+      "position": [
+        0,
+        4.5,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        12,
+        0.5,
+        4
+      ],
+      "material": {
+        "color": "#98a2ae"
+      }
+    }
+  ],
+  "props": [
+    {
+      "id": "tdm-crate-1",
+      "name": "Crate 1",
+      "type": "box",
+      "position": [
+        -3,
+        0.75,
+        -4
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.5,
+        1.5,
+        1.5
+      ],
+      "material": {
+        "color": "#8a6a44"
+      },
+      "mass": 8,
+      "tags": [
+        "target"
+      ]
+    },
+    {
+      "id": "tdm-crate-2",
+      "name": "Crate 2",
+      "type": "box",
+      "position": [
+        3,
+        0.75,
+        4
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.5,
+        1.5,
+        1.5
+      ],
+      "material": {
+        "color": "#8a6a44"
+      },
+      "mass": 8,
+      "tags": [
+        "target"
+      ]
+    },
+    {
+      "id": "tdm-crate-3",
+      "name": "Crate 3",
+      "type": "box",
+      "position": [
+        0,
+        0.75,
+        -7
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.5,
+        1.5,
+        1.5
+      ],
+      "material": {
+        "color": "#7d5f3d"
+      },
+      "mass": 8,
+      "tags": [
+        "target"
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "id": "tdm-spawn-a1",
+      "name": "Alpha spawn 1",
+      "position": [
+        -4,
+        1.2,
+        16
+      ],
+      "yaw": 0,
+      "team": "A",
+      "mode": "tdm"
+    },
+    {
+      "id": "tdm-spawn-a2",
+      "name": "Alpha spawn 2",
+      "position": [
+        4,
+        1.2,
+        16
+      ],
+      "yaw": 0,
+      "team": "A",
+      "mode": "tdm"
+    },
+    {
+      "id": "tdm-spawn-b1",
+      "name": "Bravo spawn 1",
+      "position": [
+        -4,
+        1.2,
+        -16
+      ],
+      "yaw": 3.141592653589793,
+      "team": "B",
+      "mode": "tdm"
+    },
+    {
+      "id": "tdm-spawn-b2",
+      "name": "Bravo spawn 2",
+      "position": [
+        4,
+        1.2,
+        -16
+      ],
+      "yaw": 3.141592653589793,
+      "team": "B",
+      "mode": "tdm"
+    }
+  ],
+  "bots": [
+    {
+      "id": "tdm-bot-a1",
+      "name": "Alpha 1",
+      "team": "A",
+      "skill": 0.45,
+      "position": [
+        4,
+        1.2,
+        14
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "tdm-bot-b1",
+      "name": "Bravo 1",
+      "team": "B",
+      "skill": 0.5,
+      "position": [
+        -4,
+        1.2,
+        -14
+      ],
+      "yaw": 3.141592653589793
+    },
+    {
+      "id": "tdm-bot-b2",
+      "name": "Bravo 2",
+      "team": "B",
+      "skill": 0.55,
+      "position": [
+        4,
+        1.2,
+        -16
+      ],
+      "yaw": 3.141592653589793
+    },
+    {
+      "id": "tdm-bot-b3",
+      "name": "Bravo 3",
+      "team": "B",
+      "skill": 0.35,
+      "position": [
+        0,
+        1.2,
+        -12
+      ],
+      "yaw": 3.141592653589793
+    }
+  ],
+  "triggers": [
+    {
+      "id": "tdm-center",
+      "name": "Centre platform",
+      "event": "zone.centre",
+      "once": false,
+      "position": [
+        0,
+        1,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        8,
+        4,
+        8
+      ],
+      "actions": []
+    }
+  ],
+  "sounds": [],
+  "objectives": []
+}

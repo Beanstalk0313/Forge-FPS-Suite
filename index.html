@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FPS Game</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="game-canvas" hidden></canvas>
+  <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+    <div class="loading-inner"><p class="loading-title">Loading</p><p class="loading-status">Reading the project</p><div class="loading-track"><div class="loading-bar"></div></div></div>
+  </div>
+
+  <!-- HUD overlay root (populated by src/ui/HUD.js) -->
+  <div id="hud-root"></div>
+
+  <!--
+    Click-to-play / menu host. Deliberately empty in the markup: it used to
+    ship a stock "FPS Game - click to play" panel that painted immediately and
+    was then thrown away by GameUI once the authored menu mounted, which is
+    what produced the demo-menu flash on every launch. Now the only thing
+    visible during boot is the loading screen, which is dismissed only after
+    the real menu is in the DOM.
+  -->
+  <div id="play-overlay"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

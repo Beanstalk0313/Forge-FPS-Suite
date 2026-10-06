@@ -1,0 +1,33 @@
+{
+  "name": "forge-fps-suite",
+  "private": true,
+  "version": "0.1.14",
+  "description": "Forge FPS Suite - author levels, weapons, animations and HUDs, then build a Windows game.",
+  "author": "Forge",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js tests/*.test.cjs",
+    "check": "node toolsuite/check.cjs",
+    "tools:dev": "vite --open /toolsuite/index.html",
+    "tools:desktop": "npm run build && electron toolsuite/desktop/main.cjs",
+    "tools:package": "npm run build && node toolsuite/desktop/prepare-template.cjs && node toolsuite/desktop/bump-version.cjs && electron-builder --win --config toolsuite/electron-builder.json",
+    "tools:test-shell": "npm run build && electron toolsuite/desktop/main.cjs --smoke-test",
+    "tools:test-ui": "npm run build && electron toolsuite/desktop/main.cjs --ui-test",
+    "tools:icon": "node toolsuite/desktop/make-icon.cjs",
+    "tools:bump": "node toolsuite/desktop/bump-version.cjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
+    "howler": "^2.2.4",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "vite": "^5.4.0"
+  },
+  "productName": "Forge FPS Suite"
+}

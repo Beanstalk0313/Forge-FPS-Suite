@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Forge FPS Suite</title>
+  <style>
+    html, body {
+      height: 100%; margin: 0; overflow: hidden;
+      background: radial-gradient(ellipse at 50% 35%, #16202e 0%, #0a0d13 55%, #05070a 100%);
+      color: #e8e8e8;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    .wrap {
+      height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      text-align: center;
+    }
+    .mark {
+      font-size: 1.9rem; font-weight: 600;
+      letter-spacing: 0.34em; text-transform: uppercase;
+      color: #35d6a4;
+    }
+    .sub { font-size: 0.82rem; letter-spacing: 0.16em; opacity: 0.6; text-transform: uppercase; }
+    .track { width: 260px; height: 3px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
+    .bar {
+      width: 40%; height: 100%;
+      background: linear-gradient(90deg, #35d6a4, #ffd24a);
+      animation: slide 1.15s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0%   { transform: translateX(-110%); }
+      100% { transform: translateX(260%); }
+    }
+    .hint { font-size: 0.75rem; opacity: 0.45; letter-spacing: 0.06em; }
+  </style>
+</head>
+<body>
+  <!--
+    Painted into the suite window the moment it opens, then replaced by the
+    editor bundle. Without it the window sits on backgroundColor until the
+    toolsuite page's first paint, which reads as a hang on a cold start.
+  -->
+  <div class="wrap">
+    <div class="mark">FORGE</div>
+    <div class="sub">FPS Suite</div>
+    <div class="track"><div class="bar"></div></div>
+    <div class="hint">Starting the editor…</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,325 @@
+{
+  "version": 1,
+  "name": "Forge / Capture Yard",
+  "mode": "domination",
+  "playerSpawn": {
+    "position": [
+      0,
+      1.2,
+      8
+    ],
+    "yaw": 0
+  },
+  "environment": {
+    "background": "#142333",
+    "fogNear": 30,
+    "fogFar": 100,
+    "sky": "golden-hour",
+    "render": {
+      "quality": "high",
+      "shadows": true,
+      "shadowSize": 2048,
+      "toneMapping": "aces",
+      "exposure": 1.1
+    }
+  },
+  "lights": [
+    {
+      "id": "sky",
+      "type": "hemisphere",
+      "color": "#c0dfff",
+      "groundColor": "#273b34",
+      "intensity": 2
+    },
+    {
+      "id": "sun",
+      "type": "directional",
+      "color": "#ffedd2",
+      "intensity": 2.5,
+      "position": [
+        10,
+        20,
+        10
+      ]
+    }
+  ],
+  "geometry": [
+    {
+      "id": "floor",
+      "type": "box",
+      "position": [
+        0,
+        -0.5,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        32,
+        1,
+        32
+      ],
+      "material": {
+        "color": "#344852",
+        "grid": true,
+        "gridRepeat": 16
+      }
+    },
+    {
+      "id": "north",
+      "type": "box",
+      "position": [
+        0,
+        2,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        32,
+        4,
+        1
+      ],
+      "material": {
+        "color": "#253c49"
+      }
+    },
+    {
+      "id": "west",
+      "type": "box",
+      "position": [
+        -16,
+        2,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        4,
+        32
+      ],
+      "material": {
+        "color": "#253c49"
+      }
+    },
+    {
+      "id": "east",
+      "type": "box",
+      "position": [
+        16,
+        2,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        4,
+        32
+      ],
+      "material": {
+        "color": "#253c49"
+      }
+    },
+    {
+      "id": "south",
+      "type": "box",
+      "position": [
+        0,
+        2,
+        16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        32,
+        4,
+        1
+      ],
+      "material": {
+        "color": "#253c49"
+      }
+    },
+    {
+      "id": "cover-left",
+      "type": "box",
+      "position": [
+        -5,
+        1,
+        0
+      ],
+      "rotation": [
+        0,
+        0.2,
+        0
+      ],
+      "scale": [
+        3,
+        2,
+        5
+      ],
+      "material": {
+        "color": "#56736d"
+      }
+    },
+    {
+      "id": "cover-right",
+      "type": "box",
+      "position": [
+        5,
+        1,
+        0
+      ],
+      "rotation": [
+        0,
+        -0.2,
+        0
+      ],
+      "scale": [
+        3,
+        2,
+        5
+      ],
+      "material": {
+        "color": "#56736d"
+      }
+    }
+  ],
+  "props": [
+    {
+      "id": "target-1",
+      "type": "box",
+      "position": [
+        -4,
+        1,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        2,
+        1
+      ],
+      "mass": 3,
+      "tags": [
+        "target"
+      ],
+      "material": {
+        "color": "#db9369"
+      }
+    },
+    {
+      "id": "target-2",
+      "type": "box",
+      "position": [
+        4,
+        1,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        2,
+        1
+      ],
+      "mass": 3,
+      "tags": [
+        "target"
+      ],
+      "material": {
+        "color": "#db9369"
+      }
+    }
+  ],
+  "spawns": [
+    {
+      "id": "spawn-a",
+      "team": "A",
+      "mode": "all",
+      "position": [
+        0,
+        1.2,
+        8
+      ],
+      "yaw": 0
+    }
+  ],
+  "triggers": [
+    {
+      "id": "briefing",
+      "position": [
+        0,
+        1.5,
+        5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        6,
+        3,
+        2
+      ],
+      "event": "briefing.capture",
+      "once": true,
+      "message": "Capture A: hold the amber ring for five seconds.",
+      "soundId": "capture"
+    }
+  ],
+  "sounds": [
+    {
+      "id": "capture",
+      "position": [
+        0,
+        1,
+        0
+      ],
+      "url": "src/assets/sound/hitmarker.mp3",
+      "volume": 0.5,
+      "loop": false,
+      "autoplay": false,
+      "refDistance": 6
+    }
+  ],
+  "objectives": [
+    {
+      "id": "point-a",
+      "name": "A",
+      "type": "domination",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "radius": 3,
+      "captureTime": 5,
+      "scorePerSecond": 1
+    }
+  ]
+}

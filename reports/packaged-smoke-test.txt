@@ -1,0 +1,2 @@
+Desktop smoke test passed: sandboxed bridge, project menu, 5-workspace editor (Scene, Weapons, Animation, UI, Game) and a readable project template.
+Report: D:\AppData\Roaming\Forge FPS Suite\desktop-smoke-test.txt
