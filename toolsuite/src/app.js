@@ -18,6 +18,9 @@ import { PlayerTool } from './PlayerTool.js';
 import { HomeTool } from './HomeTool.js';
 import { EditorSettings } from './EditorSettings.js';
 import { showEngineDialog } from './EngineDialog.js';
+import { Palette } from './Palette.js';
+import { showProjectCheck, checkContext } from './CheckDialog.js';
+import { auditProject, issueCounts } from './authoringTools.js';
 import { clearModelCache, modelCacheStats } from './ModelCache.js';
 import { hitboxPartAt } from '../../src/authoring/Hitboxes.js';
 import forgeIcon from '../icon.ico?url';
@@ -67,6 +70,7 @@ menubar.append(
     { label: 'New project…', action: newProject },
     { label: 'Open project…', action: () => switchProject(() => store.chooseProject()) },
     { label: 'Save', action: save },
+    { label: 'Check project…', action: checkProject },
     window.forgeDesktop && { label: 'Import files…', action: importAssets },
     window.forgeDesktop && { label: 'Build installer…', action: buildGame },
     { label: 'Settings…', action: () => settings.open() },
@@ -82,7 +86,7 @@ menubar.append(
   menu('Window', () => [...TOOLS.map(item => ({
     label: `${item.name}${item.id === active ? '    ●' : ''}`,
     action: () => { if (store.busy) throw new Error('Wait for the current operation.'); launch(item.id); }
-  })), window.forgeDesktop && { label: 'Project engine…', action: () => showEngineDialog(store) }])
+  })), { label: 'Quick open…   Ctrl+K', action: openPalette }, window.forgeDesktop && { label: 'Project engine…', action: () => showEngineDialog(store) }])
 );
 top.append(brand, menubar, projectName, workspaceTitle, actions); app.append(top);
 // No activity sidebar: workspaces come from the Window menu, documents from
@@ -104,8 +108,12 @@ const search = node('input'); search.type = 'search'; search.placeholder = 'Sear
 search.oninput = () => { assetQuery = search.value; renderDock(); };
 const clearButton = button('Clear console', () => { store.logs = []; renderDock(); });
 dockBar.append(search, importButton, refreshButton, clearButton); dock.append(dockBar, dockBody); content.append(dock);
+// Footer check indicator: created with the footer because the shell appends it
+// there, and updated from refreshStatus on every change.
+const checkIndicator = button('', () => checkProject());
+checkIndicator.className = 'footer-check'; checkIndicator.hidden = true;
 const footer = node('footer'), status = node('span', '', 'Ready'), dirty = node('span', 'muted');
-status.id = 'status'; status.setAttribute('role', 'status'); footer.append(status, dirty); content.append(footer);
+status.id = 'status'; status.setAttribute('role', 'status'); footer.append(status, checkIndicator, dirty); content.append(footer);
 const projectDrawer = node('div', 'project-scrim'); projectDrawer.hidden = true; app.append(projectDrawer);
 projectDrawer.addEventListener('click', event => { if (event.target === projectDrawer) closeProjects(); });
 const kind = () => active === 'level' ? 'level' : 'project';
@@ -121,6 +129,14 @@ async function importJSON() {
   const data = await openJSON(); if (data) store.replace(kind(), data);
 }
 async function save() { return store.operation('Saving', async () => { await store.saveAll(); await store.refreshAssets(); toast(window.forgeDesktop ? 'Project and scene saved.' : 'Project and scene exported.'); }); }
+/** One path for the toolbar button and the palette: a new scene is unsaved until Save. */
+function newScene() {
+  if (!readyToReplace('Create a new scene? Save unsaved work first.')) return;
+  const name = prompt('Scene filename', 'new-scene'); if (!name) return;
+  if (store.levels.includes(name)) throw new Error('That scene exists. Open it or choose a new filename.');
+  store.setSceneFile(name); store.replace('level', createLevel());
+  if (active === 'level') commands(); else launch('level');
+}
 async function switchProject(open) {
   if (!readyToReplace('Replace unsaved work with another project? Save first to keep your changes.')) return;
   return store.operation('Opening project', async () => {
@@ -155,21 +171,81 @@ async function buildGame() {
   selectDock('console'); const result = await store.buildGame();
   store.log(`Installer: ${result.exe}`); toast('Game installer built.'); return result;
 }
+/**
+ * Jump from a reported problem to the workspace that owns it. A scene problem
+ * only opens the Scene workspace: opening another scene file here could
+ * discard unsaved work just to show a message.
+ */
+const TARGET_WORKSPACE = { weapon: 'weapon', animation: 'animation', ui: 'ui', player: 'player', game: 'game', level: 'level' };
+function navigateTo(target = {}) {
+  const workspace = TARGET_WORKSPACE[target.kind] || 'level';
+  if (target.id && workspace !== 'level') return launch(workspace, { kind: target.kind, id: target.id });
+  return launch(workspace);
+}
+function checkProject() { return showProjectCheck(store, { navigate: navigateTo, playAnyway: playProject }); }
+/** The exact problem set the author already chose to Play through. */
+let approvedProblems = '';
+/**
+ * Play with a check first. A renamed model, sound or clip otherwise only shows
+ * up as a black scene or a boot error inside the game window, so the editor
+ * reports it here and offers Play anyway. The same problem set is asked once;
+ * changing the project asks again.
+ */
+async function playProject() {
+  const errors = projectIssues().filter(issue => issue.severity === 'error');
+  const signature = errors.map(issue => issue.message).join('\n');
+  if (errors.length && signature !== approvedProblems) {
+    approvedProblems = signature;
+    for (const issue of errors) store.log(`Check: ${issue.message}`, 'warning');
+    showProjectCheck(store, { navigate: navigateTo, playAnyway: playProject });
+    return;
+  }
+  approvedProblems = signature;
+  await store.previewGame();
+}
+/**
+ * Quick open searches what this editor can reach now: global commands, the
+ * Window workspaces and every authored document. Ranking lives in the palette;
+ * the entries are rebuilt on open so they match the project as it stands.
+ */
+function paletteEntries() {
+  const entries = [];
+  const push = (label, hint, run) => entries.push({ label, hint, run });
+  push('Save project and scene', 'Command', save);
+  push(store.playing ? 'Restart Play' : 'Play', 'Command', playProject);
+  if (store.playing) push('Stop Play', 'Command', () => store.stopGame());
+  push('Check project', 'Command', checkProject);
+  push('New scene', 'Command', newScene);
+  push('Undo', 'Command', () => store.undo(kind()));
+  push('Redo', 'Command', () => store.redo(kind()));
+  push('Editor settings', 'Command', () => settings.open());
+  push('Switch project…', 'Command', () => switchProject(() => store.chooseProject()));
+  if (window.forgeDesktop) {
+    push('Project engine…', 'Command', () => showEngineDialog(store));
+    if (store.root) push('Build installer…', 'Command', buildGame);
+  }
+  for (const item of TOOLS) push(item.name, 'Workspace', () => launch(item.id));
+  for (const name of [...new Set([store.levelFile, ...store.levels])]) push(name, 'Scene', () => openDocument({ kind: 'level', id: name }));
+  for (const weapon of store.project.weapons) push(weapon.name, 'Weapon', () => launch('weapon', { kind: 'weapon', id: weapon.id }));
+  for (const clip of store.project.clips) push(clip.kind === 'player' ? `${clip.name} · player rig` : clip.name, 'Animation clip', () => launch('animation', { kind: 'animation', id: clip.id }));
+  for (const screen of store.project.ui.screens) push(screen.name, 'UI screen', () => launch('ui', { kind: 'ui', id: screen.id }));
+  return entries;
+}
+function openPalette() {
+  if (store.busy) throw new Error('Wait for the current operation.');
+  return palette.show(paletteEntries());
+}
+const palette = new Palette({ onRun: entry => guard(() => entry.run()) });
 function commands() {
   commandbar.replaceChildren();
   commandbar.append(button('Undo', () => store.undo(kind())), button('Redo', () => store.redo(kind())), button('Import JSON', importJSON));
   if (active === 'level') {
-    commandbar.append(button('New scene', () => {
-      if (!readyToReplace('Create a new scene? Save unsaved work first.')) return;
-      const name = prompt('Scene filename', 'new-scene'); if (!name) return;
-      if (store.levels.includes(name)) throw new Error('That scene exists. Open it or choose a new filename.');
-      store.setSceneFile(name); store.replace('level', createLevel()); commands();
-    }));
+    commandbar.append(button('New scene', newScene));
     field(commandbar, 'Save filename', store.levelFile, name => { store.setSceneFile(name); commands(); });
     commandbar.append(button('Set entry scene', () => store.change('project', p => { p.entryLevel = store.levelFile; })));
   }
   commandbar.append(node('span', 'spacer'));
-  const play = button(store.playing ? 'Restart Play' : 'Play', () => store.previewGame(), 'primary'); play.dataset.command = 'play';
+  const play = button(store.playing ? 'Restart Play' : 'Play', playProject, 'primary'); play.dataset.command = 'play';
   const stop = button('Stop', () => store.stopGame()); stop.dataset.command = 'stop'; stop.disabled = !store.playing;
   commandbar.append(play, stop);
   if (window.forgeDesktop) commandbar.append(button('Build installer', buildGame));
@@ -450,6 +526,29 @@ function refreshStatus() {
   syncDocumentTab(); renderTabs();
   projectName.textContent = window.forgeDesktop && !store.root ? 'No project' : store.project.name;
   dirty.textContent = `${store.dirty.project ? '● Project unsaved' : 'Project saved'} · ${store.dirty.level ? '● Scene unsaved' : 'Scene saved'} · ${store.levelFile}`;
+  updateCheckIndicator();
+}
+/**
+ * The footer carries the project check at a glance: hidden while the project is
+ * clean, a count while it has errors or warnings, and the full report on click.
+ * Memoized per revision so a field edit does not re-audit the whole project on
+ * every keystroke.
+ */
+let checkCache = { key: '', issues: [] };
+function projectIssues() {
+  const key = [store.root, store.revisions.project, store.revisions.level, store.levelFile, store.levels.length, store.assets.length].join('|');
+  if (checkCache.key !== key) checkCache = { key, issues: auditProject(store.project, store.level, checkContext(store)) };
+  return checkCache.issues;
+}
+function updateCheckIndicator() {
+  const counts = issueCounts(projectIssues());
+  // Errors and warnings are the ones worth a persistent chip; unused content
+  // (notes) stays in the report so the footer is not permanently noisy.
+  const actionable = counts.error + counts.warning;
+  checkIndicator.hidden = !actionable;
+  checkIndicator.classList.toggle('error', !!counts.error);
+  checkIndicator.textContent = counts.error ? `${counts.error} error${counts.error === 1 ? '' : 's'}` : `${counts.warning} warning${counts.warning === 1 ? '' : 's'}`;
+  checkIndicator.title = `${counts.error} errors · ${counts.warning} warnings · ${counts.info} notes — open the project check`;
 }
 function refreshBusy() {
   host.inert = !!store.busy; menubar.inert = !!store.busy; projectDrawer.inert = !!store.busy;
@@ -505,7 +604,12 @@ document.addEventListener('keydown', event => {
     }
     return;
   }
-  if (document.querySelector('dialog[open]') || store.busy || !(event.ctrlKey || event.metaKey)) return;
+  if (document.querySelector('dialog[open]')) return;
+  // Ctrl+K works with the search field focused, so it is handled before the
+  // input guard below; the palette owns Arrow/Enter/Escape while it is open.
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); guard(openPalette); return; }
+  if (palette.open) { if (event.key === 'Escape') { event.preventDefault(); palette.hide(); } return; }
+  if (store.busy || !(event.ctrlKey || event.metaKey)) return;
   if (event.key.toLowerCase() === 's') { event.preventDefault(); guard(save); return; }
   if (/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
   if (event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? store.redo(kind()) : store.undo(kind()); }
@@ -513,7 +617,7 @@ document.addEventListener('keydown', event => {
 });
 if (!window.forgeDesktop) window.addEventListener('beforeunload', event => { if (hasChanges()) { event.preventDefault(); event.returnValue = ''; } });
 window.addEventListener('forge:models-invalidate', () => clearModelCache('project switch'));
-window.__forge = { store, launch, renderDock, showProjects, chooseProject: () => switchProject(() => store.chooseProject()), openProject: root => switchProject(() => store.openProject(root)), newProject, settings, hitboxPartAt, get modelCache() { return modelCacheStats(); }, get tool() { return tool; } };
+window.__forge = { store, launch, renderDock, showProjects, chooseProject: () => switchProject(() => store.chooseProject()), openProject: root => switchProject(() => store.openProject(root)), newProject, settings, hitboxPartAt, checkProject, playProject, openPalette, navigateTo, get palette() { return palette; }, get issues() { return projectIssues(); }, get modelCache() { return modelCacheStats(); }, get tool() { return tool; } };
 launch('home'); renderDock();
 guard(async () => {
   await store.refreshAssets(); await store.refreshProjects();

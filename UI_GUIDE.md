@@ -498,6 +498,7 @@ npm run dev     # editor at /toolsuite/index.html, game at /
 
 Editor pass
 
+- Run **File → Check project…** (or Ctrl+K → *Check project*): every UI image and font the authored screens name is verified against the real project assets, and each problem row can jump straight to the screen that owns it. Play runs the same check and reports errors before booting.
 - Open the **UI** tab; walk every screen. Common plus mode HUD must compose exactly once (use **Preview mode**).
 - Confirm **Switch to interactive preview**: Settings → Back, both sliders, and pointer-lock-free navigation.
 - Flip every **LIVE PREVIEW DATA** field and confirm nothing overflows or disappears unexpectedly.

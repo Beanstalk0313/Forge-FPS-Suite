@@ -775,6 +775,77 @@ export default async function driveUI(root) {
   check('weapon preview loads the same selected arm meshes', !!armsPreview.model.armsRoot && armsPreview.model.armsRoot.getObjectByName('player:BodyMesh').visible === false);
   launch('level'); await wait(100);
 
+  /* ---- project check: broken references before Play ---- */
+  launch('level'); await wait(150);
+  /* The footer indicator is the rule "visible exactly while an error or a
+     warning exists"; notes (unused clips) belong to the report only. */
+  const issueCounts = () => window.__forge.issues.reduce((totals, issue) => ({ ...totals, [issue.severity]: (totals[issue.severity] || 0) + 1 }), {});
+  const indicatorMatchesRule = () => {
+    const badge = document.querySelector('.footer-check'), counts = issueCounts();
+    const expected = (counts.error || 0) + (counts.warning || 0) === 0;
+    return badge.hidden === expected && (expected || /error|warning/.test(badge.textContent));
+  };
+  const cleanReport = window.__forge.issues;
+  // Warnings are legitimate authoring state (this throwaway scene is a TDM
+  // level with no team spawns), so only broken references must be absent here.
+  check('a project with real assets has no broken references', !cleanReport.some(issue => issue.severity === 'error'), JSON.stringify(cleanReport.filter(issue => issue.severity === 'error').slice(0, 4)));
+  check('the footer check indicator follows the errors and warnings it has', indicatorMatchesRule(), JSON.stringify(issueCounts()));
+  const brokenWeapon = store.project.weapons[0];
+  store.change('project', project => { project.weapons.find(w => w.id === brokenWeapon.id).gunshot = 'src/assets/sound/not-here.mp3'; });
+  await wait(200);
+  const indicator = document.querySelector('.footer-check');
+  check('a broken reference surfaces in the footer instead of only in Play', !indicator.hidden && /1 error/.test(indicator.textContent), `${indicator.textContent} · ${indicator.className}`);
+  await openMenu('File');
+  check('the File menu offers the project check', menuLabels().includes('Check project…'), menuLabels().join(' / '));
+  await click(find('.context-menu button', 'Check project…'), 'open the project check');
+  const checkOpen = await until(() => !!document.querySelector('.check-dialog'));
+  const reportText = document.querySelector('.check-dialog')?.textContent || '';
+  check('the report names the missing asset and the owning area', checkOpen && /not-here\.mp3/.test(reportText) && /Weapon/.test(reportText), reportText.slice(0, 140));
+  check('the report states that nothing was changed', /Nothing is changed/.test(reportText));
+  await click(find('.check-dialog .issue-row button', 'Show'), 'show the weapon holding the broken reference');
+  await wait(250);
+  check('a reported problem jumps to the workspace that owns it', /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''), document.querySelector('.workspace-title')?.textContent);
+  await window.__forge.playProject();
+  await wait(250);
+  check('Play reports broken references instead of booting a broken preview', !!document.querySelector('.check-dialog') && !store.playing);
+  check('the report offers Play anyway without blocking the author', !!find('.check-dialog button', 'Play anyway'));
+  await click(find('.check-dialog button', 'Check again'), 'check again');
+  await wait(150);
+  check('re-checking keeps the report while the reference is still broken', !!document.querySelector('.check-dialog .issue-row.error'));
+  await click(find('.check-dialog button', 'Close'), 'close the project check');
+  await wait(120);
+  check('closing the report leaves the editor responsive', !document.querySelector('.check-dialog') && !store.busy);
+  store.undo('project'); await wait(220);
+  check('fixing the reference clears the footer indicator', indicatorMatchesRule() && !window.__forge.issues.some(issue => issue.severity === 'error'), JSON.stringify(window.__forge.issues));
+
+  /* ---- quick open (Ctrl+K) ---- */
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
+  const paletteUp = await until(() => !document.querySelector('.palette-scrim').hidden);
+  const paletteInput = document.querySelector('.palette-input');
+  check('Ctrl+K opens quick open and focuses its search field', paletteUp && document.activeElement === paletteInput, String(document.activeElement?.className));
+  const paletteLabels = () => [...document.querySelectorAll('.palette-item .palette-label')].map(el => el.textContent);
+  // Guarded so a palette that failed to open reports its checks instead of
+  // throwing and hiding the rest of the suite.
+  const searchPalette = async value => {
+    if (!paletteInput) return false;
+    paletteInput.value = value; paletteInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(120); return true;
+  };
+  const paletteKey = key => paletteInput?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  await searchPalette('weapon');
+  check('quick open offers the matching workspace first', paletteLabels()[0] === 'Weapons', paletteLabels().join(' / '));
+  await searchPalette(brokenWeapon.name);
+  check('quick open finds authored documents by name', paletteLabels().includes(brokenWeapon.name), paletteLabels().join(' / '));
+  paletteKey('Enter');
+  await wait(300);
+  check('Enter runs the highlighted entry and closes quick open', document.querySelector('.palette-scrim').hidden && /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''));
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
+  await until(() => !document.querySelector('.palette-scrim').hidden);
+  paletteKey('Escape');
+  await wait(150);
+  check('Escape closes quick open without changing the workspace', document.querySelector('.palette-scrim').hidden && /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''));
+  launch('level'); await wait(150);
+
   /* ---- save whole project ---- */
   await click(find('.top-actions button', 'Save'), 'save');
   await wait(400);
