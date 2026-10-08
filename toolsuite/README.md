@@ -2,6 +2,8 @@
 
 FPS authoring app built on Three.js, Rapier, Howler, Vite and Electron. Vanilla JavaScript modules; game content is JSON, not executable scripts.
 
+Step-by-step user guide: [docs/README.md](../docs/README.md) — installation, each workspace in turn, playtesting, shipping, engine updates and troubleshooting. This file stays the dense feature reference; the guide is what an author reads first.
+
 ## Run and verify
 
 ```bash
