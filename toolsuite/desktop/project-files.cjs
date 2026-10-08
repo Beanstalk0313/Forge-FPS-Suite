@@ -2,7 +2,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const ASSET_EXT = new Set(['.glb', '.png', '.jpg', '.jpeg', '.webp', '.mp3', '.wav', '.ogg', '.woff', '.woff2', '.ttf', '.otf']);
+const ASSET_EXT = new Set(['.glb', '.ico', '.png', '.jpg', '.jpeg', '.webp', '.mp3', '.wav', '.ogg', '.woff', '.woff2', '.ttf', '.otf']);
 const FONT_EXT = ['.woff', '.woff2', '.ttf', '.otf'];
 async function scoped(root, relative) {
   if (typeof relative !== 'string' || relative.includes('\\') || path.isAbsolute(relative) || relative.split('/').some(p => !p || p === '.' || p === '..')) throw new Error('Invalid project path.');

@@ -4,6 +4,7 @@
  * Positions are meters, rotations radians (YXZ), keyframe times seconds.
  */
 import { validateSky, validateRender, DEFAULT_SKY } from './Presentation.js';
+import { validateHitboxes, validateDamageMultipliers } from './Hitboxes.js';
 
 export const VERSION = 1;
 export const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -16,7 +17,8 @@ export const DEFAULT_WEAPON = {
   airSpread: 0.045, adsSpreadMultiplier: 0.35, adsFov: 55, adsSpeed: 12,
   hipPosition: [0.26, -0.24, -0.62], adsPosition: [0, -0.12, -0.46],
   hipRotation: [0, 0, 0], adsRotation: [0, 0, 0], muzzle: [0, 0, -0.45],
-  gunshot: 'src/assets/sound/m4.mp3', animations: {}
+  gunshot: 'src/assets/sound/m4.mp3', animations: {},
+  damageMultipliers: { head: 2, torso: 1, arms: 0.75, legs: 0.75 }
 };
 /**
  * Export properties: what the built game calls itself and how the installer is
@@ -147,7 +149,7 @@ export function defaultUI() {
   };
 }
 export function defaultPlayer() {
-  return { modelUrl: '', height: 1.8, rotation: [0, 0, 0], animations: {},
+  return { modelUrl: '', height: 1.8, rotation: [0, 0, 0], animations: {}, hitboxes: [],
     firstPerson: { enabled: false, meshes: [], position: [-0.26, -1.5, 0.45], rotation: [0, 0, 0], scale: 1 } };
 }
 export function createProject() {
@@ -413,7 +415,11 @@ export function validateProject(data) {
     insist(first && typeof first.enabled === 'boolean' && Array.isArray(first.meshes) && first.meshes.every(name => typeof name === 'string' && name.length > 0), 'Player first-person meshes must be named meshes.');
     insist(new Set(first.meshes).size === first.meshes.length, 'First-person mesh names must be unique.');
     insist(vector(first.position) && vector(first.rotation) && finite(first.scale) && first.scale > 0 && first.scale <= 100, 'Invalid first-person arms pose.');
-    insist(!first.enabled || player.modelUrl && first.meshes.length, 'Choose a player model and arm meshes before enabling first-person arms.');
+    // Enabling before picking meshes is allowed: the mesh tickboxes appear
+    // exactly when first-person is on (item 3), so the natural order is
+    // enable -> tick. The runtime reports a missing arm mesh explicitly.
+    insist(!first.enabled || player.modelUrl, 'Choose a player model before enabling first-person arms.');
+    validateHitboxes(player.hitboxes);
   }
   insist(typeof data.ui?.css === 'string' && data.ui.css.length <= 1024 * 1024, 'UI CSS must be text, max 1 MB.');
   insist(data.weapons.some(w => w.id === data.activeWeapon) || (!data.weapons.length && !data.activeWeapon), 'Active weapon does not exist.');
@@ -424,6 +430,7 @@ export function validateProject(data) {
     insist(w.spreadMax >= w.spreadBase && finite(w.adsFov) && w.adsFov >= 20 && w.adsFov <= 100, `${w.name}: invalid spread bounds / ADS FOV.`);
     for (const key of ['hipPosition', 'adsPosition', 'hipRotation', 'adsRotation', 'muzzle']) insist(vector(w[key]), `${w.name}: invalid ${key}.`);
     if (w.arms !== undefined) insist(w.arms && vector(w.arms.position) && vector(w.arms.rotation) && finite(w.arms.scale) && w.arms.scale > 0 && w.arms.scale <= 100, `${w.name}: invalid arms pose.`);
+    validateDamageMultipliers(w.damageMultipliers);
     for (const id of Object.values(w.animations ?? {})) insist(!id || data.clips.some(c => c.id === id && c.kind !== 'player'), `${w.name}: missing animation ${id}.`);
   }
   for (const clip of data.clips) {

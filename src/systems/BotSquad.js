@@ -11,13 +11,14 @@ import { Bot, skillProfile } from '../entities/Bot.js';
 import { resolveBotShot } from './BotCombat.js';
 
 export class BotSquad extends EventTarget {
-  constructor({ engine, physics, spec = [], match, player = null, spawnPoints = [], tracers = null }) {
+  constructor({ engine, physics, spec = [], match, player = null, spawnPoints = [], tracers = null, rig = null }) {
     super();
     this.engine = engine;
     this.physics = physics;
     this.match = match;
     this.player = player;
     this.tracers = tracers;
+    this.rig = rig;
     this.spawnPoints = spawnPoints;
     this.bots = [];
     this.participants = player ? [player] : [];
@@ -32,7 +33,8 @@ export class BotSquad extends EventTarget {
       id: entry.id, name: entry.name, team: entry.team, skill: entry.skill,
       position: entry.position, yaw: entry.yaw,
       engine: this.engine, physics: this.physics, squad: this,
-      damage: Math.max(1, Math.round(Number(entry.damage) || skillProfile(entry.skill).damage))
+      damage: Math.max(1, Math.round(Number(entry.damage) || skillProfile(entry.skill).damage)),
+      rig: this.rig
     });
     this.bots.push(bot);
     this.participants.push(bot);

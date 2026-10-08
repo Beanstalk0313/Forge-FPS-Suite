@@ -17,8 +17,17 @@ test('player schema remains optional and validates mesh/clip references', () => 
   const legacy = createProject(); delete legacy.player; validateProject(legacy);
   project.player.modelUrl = 'src/assets/models/players/test.glb';
   project.player.firstPerson.enabled = true;
-  assert.throws(() => validateProject(project), /arm meshes/);
+  // Item 3: enabling first reveals the mesh tickboxes; meshes may come after.
+  validateProject(project);
   project.player.firstPerson.meshes = ['ArmsMesh']; validateProject(project);
+  project.player.modelUrl = '';
+  assert.throws(() => validateProject(project), /Choose a player model before enabling first-person arms/);
+  project.player.modelUrl = 'src/assets/models/players/test.glb';
+  project.player.hitboxes = [{ id: 'h', name: 'Head', part: 'head', position: [0, 1.6, 0], rotation: [0, 0, 0], size: [0.3, 0.3, 0.3] }];
+  validateProject(project);
+  project.player.hitboxes = [{ id: 'h', name: 'Head', part: 'snout', position: [0, 1.6, 0], rotation: [0, 0, 0], size: [0.3, 0.3, 0.3] }];
+  assert.throws(() => validateProject(project), /head, torso, arms or legs/);
+  project.player.hitboxes = [];
   project.player.animations.idle = 'missing';
   assert.throws(() => validateProject(project), /player clip/);
 });

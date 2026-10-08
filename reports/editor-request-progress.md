@@ -88,6 +88,16 @@ Earlier desktop attempts timed out on exported smoke or repeat preview. Diagnost
 
 No new suite installer/version bump in this batch. Existing release 0.1.12 predates these changes. A throwaway exported-game installer is produced by the desktop test and removed with its fixture; installer wizard is not run.
 
+## Follow-up request (2026-10-08): textures, menu bar, file browser
+
+Recorded in full in [player-arm-usability.md](player-arm-usability.md) under "Follow-up batch: textures, menu bar, file-browser dock". In short:
+
+- **Player textures:** the white model was never a texture-less export — the GLB uses `KHR_materials_pbrSpecularGlossiness`, which three r169's `GLTFLoader` no longer supports, so every texture stayed unreferenced. `src/systems/GLTFLoaders.js` now owns the only `GLTFLoader` construction in the runtime and the editor and maps the legacy extension onto `MeshStandardMaterial`. Proven on the user's own 10.6 MB soldier GLB: 0/11 meshes textured before, 11/11 after.
+- **Traditional topbar:** workspace tabs were replaced by a **File / Edit / Window** menu bar; the Window menu is how each editing workspace is opened and it marks the active one.
+- **Assets dock:** now a real file browser — folder tree rooted at Project (Forge documents + the `src/assets` tree), Up button, clickable breadcrumbs, and a Name/Type/Size file list with folders first, double-click to enter or open, and row context menus.
+
+The chrome described in the batches above (topbar tabs, card-grid dock) is superseded; the numbered items themselves remain implemented.
+
 ## Remaining requested items
 
 All items are implemented across the four batches above. A new installer is deliberately not part of this delivery; add the next features first.

@@ -5,6 +5,7 @@ import { WeaponModel } from '../../src/entities/WeaponModel.js';
 import { capturePose } from '../../src/authoring/Animation.js';
 import { DEFAULT_WEAPON, clone, uid } from '../../src/authoring/Project.js';
 import { playerSettings } from '../../src/authoring/PlayerRig.js';
+import { HITBOX_PARTS, PART_LABEL } from '../../src/authoring/Hitboxes.js';
 import { node, button, field, vector, heading, jsonPanel, toast, onContextMenu, closeContextMenu } from './dom.js';
 const EVENT_LIST = ['idle', 'walk', 'fire', 'reload', 'equip'];
 /** Option labels show duration and flag clips authored for a different model. */
@@ -157,6 +158,10 @@ export class WeaponTool {
     heading(this.right, 'MUZZLE');
     vector(this.right, 'muzzle (m)', w.muzzle, n => this.edit(v => { v.muzzle = n; }));
     this.right.append(node('p', 'muted', 'Local to the fitted model pivot. Drag the gizmo on the barrel tip in the viewport to place it.'));
+    heading(this.right, 'DAMAGE HITBOXES');
+    this.right.append(node('p', 'muted', 'Damage per body part, × the base damage. Hitbox zones are authored in the Player workspace; shots resolve the part they land on.'));
+    const multipliers = w.damageMultipliers || {};
+    for (const part of HITBOX_PARTS) field(this.right, `${PART_LABEL[part]} ×`, multipliers[part] ?? 1, n => this.edit(v => { v.damageMultipliers = { ...(v.damageMultipliers || {}), [part]: n }; }), { step: 0.05 });
     const rig = playerSettings(this.store.project);
     if (rig.firstPerson.enabled) {
       heading(this.right, 'Arms with this gun');

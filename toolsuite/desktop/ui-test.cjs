@@ -58,7 +58,10 @@ async function runUITest({ win, engineRoot, templateRoot = engineRoot, setRoot, 
   const record = (name, ok, detail = '') => report.push({ name, ok: !!ok, detail: String(detail).slice(0, 200) });
   try {
     note(engineRoot, `test project ready at ${root}`);
+    await fs.writeFile(path.join(root, '.forge/engine-v'), '\n');
+    await fs.appendFile(path.join(root, 'src/core/Engine.js'), '\n// Test custom engine modification\n');
     await setRoot(root);
+    record('editor launches maximized', win.isMaximized());
     const wasFullscreen = win.isFullScreen();
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'F11' });
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'F11' });
@@ -213,6 +216,12 @@ async function runUITest({ win, engineRoot, templateRoot = engineRoot, setRoot, 
     })()`).catch(error => ({ error: error.message }));
     record('imported models build real triangle collision in game', colliderProbe.models >= 2 && colliderProbe.meshColliders >= 1 && colliderProbe.triangles > 100, JSON.stringify(colliderProbe));
     record('dynamic props use a convex hull of the model', colliderProbe.hullColliders >= 1 && colliderProbe.propMode === 'hull' && colliderProbe.propMass > 0, JSON.stringify(colliderProbe));
+    await firstPreview.webContents.executeJavaScript(`window.__game.hud.action('quit'); void 0`);
+    await sleep(300);
+    record('Quit button closes preview without boot errors', firstPreview.isDestroyed());
+    record('closing preview resets Play and leaves editor responsive', await win.webContents.executeJavaScript('!window.__forge.store.playing && !window.__forge.store.busy'));
+    const reopened = await previewGame();
+    record('Play can reopen after preview close', await reopened.webContents.executeJavaScript('!!window.__menu'));
     await win.webContents.executeJavaScript('window.__forge.store.stopGame()');
     record('Stop closes Play and resets state', await win.webContents.executeJavaScript('!window.__forge.store.playing'));
 

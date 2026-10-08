@@ -11,7 +11,7 @@ export class Store extends EventTarget {
     super(); this.bundled = bundledAssets; this.project = createProject(); this.level = createLevel();
     this.history = { project: [], level: [] }; this.future = { project: [], level: [] };
     this.dirty = { project: false, level: false }; this.revisions = { project: 0, level: 0 };
-    this.assets = []; this.baseURL = ''; this.root = ''; this.projects = []; this.levels = [];
+    this.assets = []; this.documents = []; this.documentMode = false; this.engine = null; this.baseURL = ''; this.root = ''; this.projects = []; this.levels = [];
     this.levelFile = 'arena'; this.recovery = null; this.busy = ''; this.playing = false; this.logs = [];
   }
   validate(kind, value) {
@@ -72,6 +72,12 @@ export class Store extends EventTarget {
     const project = validateProject(clone(result.project)), level = this.validate('level', clone(result.level));
     this.root = result.root; this.baseURL = result.baseURL; this.project = project; this.level = level;
     this.levelFile = result.levelFile; this.levels = result.levels; this.assets = result.assets;
+    this.documents = result.documents || []; this.documentMode = !!result.documentMode; this.engine = result.engine || null;
+    this.animationContext = null; this.animationWeapon = null;
+    // Parsed GLBs are only valid for one project: swap projects and the old
+    // cache entries would serve stale models into the new project's tools.
+    try { globalThis.dispatchEvent?.(new CustomEvent('forge:models-invalidate')); } catch { /* non-DOM host */ }
+    this.playing = false;
     this.history = { project: [], level: [] }; this.future = { project: [], level: [] };
     this.revisions.project++; this.revisions.level++; this.dirty = { project: false, level: false }; this.recovery = null;
     localStorage.setItem('forge-last-project', this.root);
@@ -164,6 +170,7 @@ export class Store extends EventTarget {
   async refreshAssets() {
     if (window.forgeDesktop) this.assets = this.root ? await window.forgeDesktop.assets() : [];
     else this.assets = Object.keys(this.bundled).map(path => ({ path: path.slice(1), name: path.split('/').at(-1), bytes: null }));
+    if (window.forgeDesktop?.documents && this.root) this.documents = await window.forgeDesktop.documents();
     this.dispatchEvent(new Event('assets'));
   }
   async save(kind) {

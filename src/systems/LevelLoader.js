@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createGLTFLoader } from './GLTFLoaders.js';
 import { createMaterial, disposeObject3D } from './Materials.js';
 import { meshColliderData, colliderDescFor } from './CollisionShapes.js';
 import { applySky, clearSky, skyPreset } from './Skybox.js';
@@ -68,7 +68,7 @@ export class LevelLoader {
     this._bodies = [];
     this._props = [];         // { mesh, body } dynamic pairs for per-frame sync
     this.assets = new AssetBarrier();
-    this._gltfLoader = new GLTFLoader(this.assets.manager);
+    this._gltfLoader = createGLTFLoader(this.assets.manager);
     this._loads = [];
     this.ready = Promise.resolve(this);
     this._disposed = false;

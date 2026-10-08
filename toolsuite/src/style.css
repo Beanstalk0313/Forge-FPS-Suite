@@ -1,14 +1,84 @@
 @import url('../../src/style.css');
 :root { color-scheme: dark; --mint:#77e4c1; --line:#283546; --panel:#121c29; --muted:#8f9fb2; --app-bg:#0b121c; --app-text:#e7eef8; }
-/* --app-bg/--app-text/--panel/--mint/--line are the theme surface: Home/Settings rewrites them on the root so every workspace follows. */
+/* Editor-wide Settings owns the theme surface. */
 body { background:var(--app-bg); color:var(--app-text); font-family:'Segoe UI',sans-serif; }
 #app {height:100dvh;display:flex;flex-direction:column;}
 button,input,select,textarea {font:inherit;} button {border:1px solid var(--line);border-radius:5px;background:#1a2838;color:#dce7f3;padding:8px 11px;cursor:pointer;transition:background .12s,border-color .12s;}
 button:hover {background:#253c4b;border-color:#668a94;} button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {outline:2px solid var(--mint);outline-offset:2px;}
-button.primary {background:#77e4c1;color:#0b2721;font-weight:700;}button.danger {color:#ff9b9b;}button.selected,button.active {border-color:#77e4c1;background:#1f3a3a;color:#9af2d8;}
+button.primary {background:var(--mint);color:#0b2721;font-weight:700;}button.danger {color:#ff9b9b;}button.selected,button.active {border-color:var(--mint);background:#1f3a3a;color:var(--mint);}
 .topbar {height:48px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--panel);}
 .brand {font-size:16px;font-weight:800;letter-spacing:2px;color:var(--mint);white-space:nowrap;}
-nav {display:flex;gap:4px;}nav button {border-color:transparent;background:transparent;font-size:12px;}
+.editor-shell {display:flex;flex:1;min-height:0;}
+/* No activity sidebar: workspaces live in the Window menu. */
+.shell-content {display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;}
+.forge-mark {width:28px;height:28px;object-fit:contain;}
+.brand {display:flex;align-items:center;gap:0;}
+.document-tabs {display:flex;gap:2px;overflow-x:auto;background:var(--app-bg);flex-shrink:0;min-height:38px;border-bottom:1px solid var(--line);}
+.document-tab {display:flex;flex-shrink:0;border-right:1px solid var(--line);}
+.document-tab button {border:0;border-radius:0;background:transparent;font-size:11px;}
+.document-tab button.active {color:var(--mint);background:var(--panel);border-bottom:2px solid var(--mint);}
+.launcher-workspace {display:block!important;overflow:auto;background:var(--app-bg);}
+.project-launcher {max-width:1080px;margin:0 auto;padding:60px clamp(28px,5vw,80px);}
+.launcher-header {padding-bottom:42px;border-bottom:1px solid var(--line);}
+.launcher-header .eyebrow {margin-bottom:18px;}
+.launcher-header h1 {font-size:clamp(30px,3vw,44px);font-weight:600;letter-spacing:-1.5px;line-height:1.15;margin:0 0 15px;}
+.launcher-description {color:var(--muted);font-size:15px;line-height:1.6;}
+.launcher-actions {display:flex;align-items:center;gap:12px;margin-top:28px;}
+.launcher-actions button {padding:12px 20px;}
+.recent-projects {margin-top:32px;}
+.recent-projects h2 {font-size:15px;font-weight:600;margin-bottom:20px;}
+.launcher-empty {border:1px dashed var(--line);border-radius:10px;padding:32px;color:var(--muted);font-size:13px;}
+.launcher-project {display:flex;align-items:center;gap:20px;padding:22px 0;border-bottom:1px solid var(--line);}
+.launcher-project .body {flex:1;min-width:0;}
+.launcher-project h3 {font-size:15px;letter-spacing:0;margin:0 0 7px;color:var(--app-text);}
+.launcher-project .path {font-size:11px;color:var(--muted);overflow-wrap:anywhere;margin:0 0 8px;}
+.project-monogram {height:48px;width:48px;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;color:var(--mint);background:var(--panel);font-size:20px;flex-shrink:0;}
+.on-home .topbar {background:var(--app-bg);}
+/* Assets dock: folder tree + a real file list (name / type / size). */
+.asset-browser {display:flex;min-height:100%;}
+.folder-tree {width:190px;flex-shrink:0;padding:12px 10px 12px 0;border-right:1px solid var(--line);}
+.folder-tree button {display:block;width:100%;text-align:left;padding:6px 10px;font-size:11px;background:transparent;border:0;margin:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.folder-tree button.tree-row:hover {background:#1a2c3d;color:#cfe6f2;}
+.folder-tree button.active {color:var(--mint);background:#1b2b39;}
+.folder-tree .tree-note {padding-left:10px;}
+.folder-content {flex:1;min-width:0;padding:10px 16px;display:flex;flex-direction:column;}
+.file-nav {display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-shrink:0;}
+.file-nav .file-up {font-size:10px;padding:4px 9px;}
+.file-crumbs {display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow:hidden;font-size:11px;}
+.file-crumbs button {border:0;background:transparent;font-size:11px;padding:3px 6px;color:#c3d6e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-crumbs button:hover {background:#1a2c3d;border-color:transparent;}
+.file-crumbs button.active {color:var(--mint);}
+.file-crumbs .crumb-sep {color:#4d6377;}
+.file-list {width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed;}
+.file-list th {text-align:left;font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:#7f93a8;font-weight:600;padding:0 8px 6px;border-bottom:1px solid var(--line);}
+.file-list .file-type-col {width:120px;}.file-list .file-size-col {width:80px;text-align:right;}
+.file-list td {padding:0;border-bottom:1px solid #1a2634;}
+.file-row.selected td {background:#1b2f3c;}
+.file-row:hover td {background:#16242f;}
+.file-label {display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;border-radius:0;background:transparent;padding:7px 8px;font-size:11.5px;color:#dce7f3;}
+.file-label:hover {background:transparent;border-color:transparent;}
+.file-label .file-name-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-glyph {color:var(--mint);flex-shrink:0;width:14px;text-align:center;}
+.file-kind,.file-size {padding:7px 8px;color:#8fb0c4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-size {text-align:right;}
+
+/* Traditional menu bar: File / Edit / Window, one dropdown at a time. */
+.menubar {display:flex;align-self:stretch;gap:0;}
+.menubar button {height:100%;border:0;border-radius:0;background:transparent;padding:0 13px;font-size:12px;}
+.menubar button:hover {background:#1e3143;border-color:transparent;}
+.workspace-title {font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:var(--mint);white-space:nowrap;}
+.update-notice {display:flex;align-items:center;gap:12px;background:var(--panel);border-bottom:1px solid var(--mint);padding:10px 16px;font-size:12px;}
+.update-notice span {flex:1;}
+.update-notice button {font-size:11px;padding:5px 9px;}
+dialog.settings-dialog,dialog.engine-dialog {color:var(--app-text);background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(700px,90vw);max-height:85vh;padding:26px;box-shadow:0 25px 100px #0009;}
+dialog::backdrop {background:#03070cc9;backdrop-filter:blur(4px);}
+dialog header {display:flex;align-items:center;gap:16px;}dialog header h2 {font-size:20px;margin:0;}
+.engine-dialog p {font-size:13px;line-height:1.7;}.safety-note {padding:16px;border:1px solid #77e4c140;background:#77e4c10c;border-radius:8px;}
+.file-review {font:11px/1.8 Consolas,monospace;max-height:180px;overflow:auto;}
+.conflict-row {display:flex;align-items:center;gap:10px;font:11px Consolas,monospace;margin:10px 0;overflow-wrap:anywhere;}
+.backup-row {display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.update-panel button {margin:6px 8px 0 0;}
+@media(max-width:1100px) {.project-launcher {padding-top:36px;}.launcher-project {gap:12px;}.launcher-project .row-actions {flex-direction:column;}}
 .top-actions {display:flex;gap:8px;margin-left:auto;}.top-actions button {font-size:12px;}
 .commandbar {min-height:42px;flex-shrink:0;padding:6px 12px;display:flex;gap:8px;align-items:center;background:var(--panel);border-bottom:1px solid var(--line);font-size:11px;flex-wrap:wrap;}
 .commandbar button {padding:5px 9px;}.breadcrumb {color:#abc4d6;letter-spacing:1px;margin-right:auto;}.commandbar .field {display:flex;align-items:center;margin:0;gap:8px;}.commandbar input {width:130px;}
@@ -34,7 +104,7 @@ main {flex:1;min-height:0;}footer {height:32px;flex-shrink:0;display:flex;align-
 .context-menu {position:fixed;z-index:200;min-width:190px;padding:5px;background:#16212f;border:1px solid #3a4d61;border-radius:7px;box-shadow:0 14px 40px #000c;}
 .context-menu button {display:block;width:100%;text-align:left;border:0;background:transparent;padding:7px 10px;font-size:11px;border-radius:4px;}
 .context-menu button:hover {background:#24384a;} .context-menu hr {border:0;border-top:1px solid #2c3d4f;margin:5px 2px;}
-@media(max-width:1200px) {.topbar {gap:10px;padding:0 10px;}nav button {padding:7px;font-size:10px;}.workspace {--left-panel:190px;--right-panel:260px;}.panel {padding:12px;}.launcher {grid-template-columns:1fr;align-content:start;}.intro h1 {font-size:52px;white-space:normal;}.intro p {max-width:700px;}.version-tag {margin-top:16px;}.intro {margin-bottom:5px;}.tool-card {min-height:190px;}}
+@media(max-width:1200px) {.topbar {gap:10px;padding:0 10px;}.menubar button {padding:0 8px;font-size:11px;}.workspace {--left-panel:190px;--right-panel:260px;}.panel {padding:12px;}.launcher {grid-template-columns:1fr;align-content:start;}.intro h1 {font-size:52px;white-space:normal;}.intro p {max-width:700px;}.version-tag {margin-top:16px;}.intro {margin-bottom:5px;}.tool-card {min-height:190px;}}
 
 /* ---- Home + Settings (items 1 and 11) ---------------------------------
    The landing workspace: a project overview with the two actions that
@@ -96,8 +166,8 @@ main {flex:1;min-height:0;}footer {height:32px;flex-shrink:0;display:flex;align-
 button:disabled {opacity:.45;cursor:default;}
 .editor-area {flex:1;min-height:0;display:flex;overflow:hidden;}.editor-area main {width:100%;}
 .project-title {font-size:12px;color:#b4c9d4;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.spacer {flex:1;}.topbar nav {align-self:stretch;align-items:center;}.topbar nav button {height:100%;border-radius:0;border-bottom:2px solid transparent;}.topbar nav button.active {border-bottom-color:var(--mint);}
-.splitter {background:#0c1420;touch-action:none;flex-shrink:0;}.splitter:hover,.splitter.dragging {background:#77e4c177;}.panel-splitter {cursor:col-resize;}.dock-splitter {height:5px;cursor:row-resize;border-top:1px solid var(--line);}
+.spacer {flex:1;}
+.splitter {background:#0c1420;touch-action:none;flex-shrink:0;}.splitter:hover,.splitter.dragging {background:var(--mint);}.panel-splitter {cursor:col-resize;}.dock-splitter {height:5px;cursor:row-resize;border-top:1px solid var(--line);}
 .bottom-dock {height:190px;min-height:100px;display:flex;flex-direction:column;flex-shrink:0;background:#101925;}.dock-bar {display:flex;align-items:center;gap:7px;padding:6px 12px;border-bottom:1px solid var(--line);height:40px;flex-shrink:0;}.dock-bar button {font-size:11px;padding:5px 10px;}.dock-bar input,.project-actions-row input,.commandbar select {background:#0d1622;border:1px solid #304052;color:#eef4fc;border-radius:4px;padding:6px 9px;font:11px 'Segoe UI',sans-serif;}.dock-bar input {width:240px;}.dock-body {overflow:auto;flex:1;min-height:0;padding:0 12px;}.asset-table {border-collapse:collapse;width:100%;font-size:11px;}.asset-table th {text-align:left;position:sticky;top:0;background:#101925;color:#91adbd;font-weight:500;}.asset-table td,.asset-table th {padding:7px 10px;border-bottom:1px solid #213141;}.asset-table button {font-size:10px;padding:3px 8px;}.console-log {font:11px/1.8 Consolas,monospace;padding:8px 0;}.log-line {white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid #192633;}.log-line.error {color:#ffaaa3;}.log-line.warning {color:#efd293;}
 .recovery-bar {display:flex;gap:10px;align-items:center;padding:8px 14px;background:#2a2517;border-bottom:1px solid #6d5b35;color:#f2d49a;font-size:12px;}.recovery-bar button {font-size:11px;}
 .component {border:1px solid var(--line);border-radius:5px;padding:8px 10px;margin:10px 0;}.component summary {font-size:11px;color:#b9d3df;cursor:pointer;}.component .field:last-child {margin-bottom:4px;}.hierarchy-row {display:flex;gap:3px;align-items:center;margin-bottom:4px;}.hierarchy-row button {margin:0;}.hierarchy-row .entity-select {flex:1;min-width:0;}.hierarchy-row .entity-flag {width:30px;flex-shrink:0;text-align:center;padding:7px 2px;font-size:10px;}.hierarchy-row.hidden-entity .entity-select {opacity:.5;}.panel-search {width:100%;background:#0d1622;border:1px solid #304052;color:#eef4fc;border-radius:4px;padding:7px;margin:4px 0 10px;font-size:11px;}.action-row {border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}.action-row button {font-size:10px;}

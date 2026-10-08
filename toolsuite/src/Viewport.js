@@ -8,10 +8,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneRiggedScene } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Engine } from '../../src/core/Engine.js';
 import { disposeObject3D } from '../../src/systems/Materials.js';
+import { cachedGLTF } from './ModelCache.js';
+import { createGLTFLoader } from '../../src/systems/GLTFLoaders.js';
 export class Viewport {
   constructor(parent, { select = () => {}, transform = () => {}, pick = null } = {}) {
     this.canvas = document.createElement('canvas'); parent.append(this.canvas);
@@ -49,7 +51,7 @@ export class Viewport {
       const rect = this.canvas.getBoundingClientRect();
       ray.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1), this.engine.camera);
       const hit = ray.intersectObjects(this.root.children.filter(obj => obj.visible && !obj.userData.locked), true)[0]; let obj;
-      if (pick) obj = pick(hit?.object ?? null);
+      if (pick) obj = pick(hit?.object ?? null, hit);
       else {
         obj = hit?.object;
         while (obj && obj.parent !== this.root) obj = obj.parent;
@@ -59,44 +61,71 @@ export class Viewport {
     this.canvas.addEventListener('pointerdown', this.pointerDown); this.canvas.addEventListener('pointerup', this.pointerUp);
     // Subtle selection outlines: one world-space box per selected object.
     // Helpers live in the scene, never in pick paths, and dispose with the view.
-    this.helpers = new Map();
-    this.highlight = objects => {
+    this.helpers = new Map(); // uuid -> { helper, color }
+    this.highlight = (objects, color = '#6ce2c0') => {
       const wanted = new Map((objects || []).filter(obj => obj?.parent).map(obj => [obj.uuid, obj]));
-      for (const [uuid, helper] of [...this.helpers]) {
-        if (!wanted.has(uuid) || !helper.object.parent) { this.engine.scene.remove(helper); helper.geometry.dispose(); helper.material.dispose(); this.helpers.delete(uuid); }
+      for (const [uuid, entry] of [...this.helpers]) {
+        if (!wanted.has(uuid) || !entry.helper.object.parent) { this.engine.scene.remove(entry.helper); entry.helper.geometry.dispose(); entry.helper.material.dispose(); this.helpers.delete(uuid); }
       }
       for (const [uuid, obj] of wanted) {
-        if (this.helpers.has(uuid)) continue;
-        const helper = new THREE.BoxHelper(obj, '#6ce2c0');
+        const existing = this.helpers.get(uuid);
+        if (existing) { if (existing.color !== color) { existing.helper.material.color.set(color); existing.color = color; } continue; }
+        const helper = new THREE.BoxHelper(obj, color);
         helper.material.transparent = true; helper.material.opacity = 0.4; helper.material.depthTest = false;
         helper.renderOrder = 999;
-        this.engine.scene.add(helper); this.helpers.set(uuid, helper);
+        this.engine.scene.add(helper); this.helpers.set(uuid, { helper, color });
       }
       this.syncHelpers();
     };
-    this.syncHelpers = () => { for (const helper of this.helpers.values()) helper.update(); };
+    this.syncHelpers = () => { for (const entry of this.helpers.values()) entry.helper.update(); };
     this.tick = () => { this.orbit.update(); this.syncHelpers(); }; this.engine.onUpdate(this.tick); this.engine.start(); this.generation = 0;
+  // Keyed bones must visibly deform their skinned meshes the moment a key is
+  // scrubbed, including while paused: one skeleton pass per frame (item 7).
+  this.posePass = () => this.updateSkeletons(this.root); this.engine.onUpdate(this.posePass);
   }
   clear() {
     this.generation++; this.gizmo.detach();
     for (const child of [...this.root.children]) { child.removeFromParent(); disposeObject3D(child); }
   }
   select(obj) { if (obj) this.gizmo.attach(obj); else this.gizmo.detach(); }
+  /**
+   * Skinned meshes are deformed on the GPU from the skeleton's bone matrices.
+   * Pose edits rewrite bone quaternions, but the vertex transform stays stale
+   * until the skeleton recalculates — which a paused editor never does on its
+   * own (item 7: keyed finger bones appeared not to move the arm).
+   */
+  updateSkeletons(root) {
+    root?.traverse?.(obj => { if (obj.isSkinnedMesh) obj.skeleton.update(); });
+  }
   mode(mode) { this.gizmo.setMode(mode); }
   frame(obj = this.root) {
     const box = new THREE.Box3().setFromObject(obj); if (box.isEmpty()) return;
     const center = box.getCenter(new THREE.Vector3()); const size = box.getSize(new THREE.Vector3()).length();
     this.orbit.target.copy(center); this.engine.camera.position.copy(center).add(new THREE.Vector3(1, 0.7, 1).multiplyScalar(Math.max(size, 1))); this.orbit.update();
   }
+  /**
+   * Parse-once-per-URL model loading (item 4). Tools mount their own clone of
+   * the parsed scene, so a reused cache entry never shares live transforms,
+   * skeletons or visibility flags with a previous tool's preview. Skinned
+   * scenes clone through SkeletonUtils so each clone's skeleton points at its
+   * own bones — a plain clone would leave the skin welded to the cached
+   * original, and keyed bones would stop deforming the mounted mesh.
+   *
+   * Parsing goes through the shared loader factory so editor previews read the
+   * same material data the game does: legacy specular-glossiness GLBs keep
+   * their textures here too instead of previewing flat white.
+   */
   async loadModel(url, parent, loaded = () => {}) {
     const generation = this.generation;
-    const gltf = await new GLTFLoader().loadAsync(url);
-    if (generation !== this.generation || this.disposed) { disposeObject3D(gltf.scene); return; }
-    parent.add(gltf.scene); loaded(gltf);
+    const { gltf } = await cachedGLTF(url, () => createGLTFLoader().loadAsync(url));
+    if (generation !== this.generation || this.disposed) return;
+    const scene = cloneRiggedScene(gltf.scene);
+    parent.add(scene); loaded({ ...gltf, scene });
   }
   dispose() {
     this.disposed = true; this.clear();
-    for (const helper of this.helpers.values()) { helper.geometry.dispose(); helper.material.dispose(); }
+    this.engine.removeUpdate(this.posePass);
+    for (const entry of this.helpers.values()) { entry.helper.geometry.dispose(); entry.helper.material.dispose(); }
     this.helpers.clear();
     this.canvas.removeEventListener('pointerdown', this.pointerDown); this.canvas.removeEventListener('pointerup', this.pointerUp);
     // Three r169 TransformControls.dispose calls Object3D.traverse on the

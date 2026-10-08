@@ -12,8 +12,10 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { disposeObject3D } from '../systems/Materials.js';
+import { hitboxPartAt } from '../authoring/Hitboxes.js';
 
 const CAPSULE = { halfHeight: 0.7, radius: 0.35 };
+const BOT_HEIGHT = (CAPSULE.halfHeight + CAPSULE.radius) * 2; // capsule stand-in height
 const EYE = 1.35;               // muzzle height above the body centre
 const TEAM_COLORS = { A: '#4f9dff', B: '#ff6b5e', neutral: '#c9d4e2' };
 
@@ -83,6 +85,11 @@ export class Bot {
     this.squad = opts.squad;
     this.damage = opts.damage ?? this.profile.damage;
     this.health = opts.health ?? 100;
+    // Damage hitboxes reuse the authored player-rig layout, scaled to the
+    // capsule bot, so per-part weapon multipliers work on blocky stand-ins.
+    this.hitboxes = opts.rig?.hitboxes || null;
+    this.rigHeight = opts.rig?.height || 1.8;
+    this._rigFrame = new THREE.Object3D();
     this.alive = true;
     this.spawn = { position: new THREE.Vector3(...(opts.position || [0, 1.2, 0])), yaw: Number(opts.yaw) || 0 };
     this.yaw = this.spawn.yaw;
@@ -116,6 +123,15 @@ export class Bot {
   }
 
   get position() { return this.body.translation(); }
+
+  /** Participant contract: which authored part does a world point land on? */
+  partAt(worldPoint) {
+    if (!this.hitboxes?.length || !this.alive) return null;
+    const at = this.position;
+    this._rigFrame.position.set(at.x, at.y - (CAPSULE.halfHeight + CAPSULE.radius), at.z);
+    this._rigFrame.rotation.set(0, this.yaw, 0);
+    return hitboxPartAt(this.hitboxes, this._rigFrame, worldPoint, BOT_HEIGHT / this.rigHeight);
+  }
 
   /** @returns {boolean} true when the hit killed the bot. */
   takeDamage(amount, attackerId = null) {

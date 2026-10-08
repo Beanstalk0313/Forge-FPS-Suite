@@ -10,7 +10,7 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const { scoped, saveJSON, importAsset, listAssets } = require('./project-files.cjs');
+const { scoped, importAsset, listAssets } = require('./project-files.cjs');
 
 /** Export properties of a project, without throwing on a broken file. */
 async function authoredGame(dir) {
@@ -22,12 +22,24 @@ async function authoredGame(dir) {
 }
 const template = require('./project-template.cjs');
 const builds = require('./build-project.cjs');
+const documents = require('./project-documents.cjs');
+const upgrades = require('./engine-upgrade.cjs');
 const { pathToFileURL } = require('node:url');
 const ENGINE_ROOT = path.join(__dirname, '..', '..');
 const TOOLCHAIN = app.isPackaged ? path.join(process.resourcesPath, 'toolchain/node_modules') : path.join(ENGINE_ROOT, 'node_modules');
 const NODE = app.isPackaged ? path.join(process.resourcesPath, 'tools/node.exe') : null;
 function nodeRuntime() { return app.isPackaged ? NODE : require('node:child_process').execFileSync(process.platform === 'win32' ? 'where.exe' : 'which', ['node'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0]; }
 async function closePreviewServer() { if (previewServer) { previewServer.kill(); previewServer = null; previewRoot = null; } }
+function probeWindow(target, script, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error('Preview renderer did not respond.')), timeout);
+    const closed = () => finish(new Error('Game preview was closed.'));
+    let settled = false;
+    function finish(error, value) { if (settled) return; settled = true; clearTimeout(timer); target.removeListener('closed', closed); error ? reject(error) : resolve(value); }
+    target.once('closed', closed);
+    target.webContents.executeJavaScript(script).then(value => finish(null, value), finish);
+  });
+}
 async function ensureToolchain(dir) {
   const script = path.join(TEMPLATE_ROOT, 'toolsuite/desktop/prepare-project.cjs');
   win?.webContents.send('project:log', 'Checking local build tools…');
@@ -43,7 +55,7 @@ async function adoptRoot(dir) {
   gameWin?.destroy(); gameWin = null;
   await closePreviewServer();
   root = result.root; await rememberProject(root);
-  return { ...result, baseURL };
+  return { ...result, engine: await upgrades.status(root, TEMPLATE_ROOT), baseURL };
 }
 // The scaffold is unpacked from the asar on purpose: an installed suite must be
 // able to copy the template into a project folder, and an asar is read-only.
@@ -130,6 +142,7 @@ async function buildGame() {
   building = true;
   try {
     const target = root;
+    await documents.compile(target, await contract());
     await ensureToolchain(target);
     const forge = path.join(target, '.forge');
     await fs.mkdir(forge, { recursive: true });
@@ -182,10 +195,10 @@ app.whenReady().then(async () => {
       const requestPath = new URL(req.url, 'http://localhost').pathname;
       if (!requestPath.startsWith(`/${assetToken}/`)) throw new Error('Denied');
       const relative = decodeURIComponent(requestPath.slice(assetToken.length + 2));
-      if (!root || !/^(src\/assets\/|public\/(levels\/|authoring\/)|dist\/)/.test(relative)) throw new Error('Denied');
+      if (!root || !/^(src\/assets\/|public\/(levels\/|authoring\/|forge\/)|dist\/)/.test(relative)) throw new Error('Denied');
       const file = await scoped(root, relative);
       const ext = path.extname(file).toLowerCase();
-      const mime = { '.json': 'application/json', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.wasm': 'application/wasm' }[ext];
+      const mime = { '.fsp': 'application/json', '.fss': 'application/json', '.fsa': 'application/json', '.ico': 'image/x-icon', '.fsw': 'application/json', '.fsui': 'application/json', '.json': 'application/json', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.wasm': 'application/wasm' }[ext];
       if (!mime) throw new Error('Denied');
       res.setHeader('Content-Type', mime); res.end(await fs.readFile(file));
     } catch { res.writeHead(404); res.end(); }
@@ -200,10 +213,30 @@ app.whenReady().then(async () => {
   // The suite draws its own chrome, so the stock menu bar is removed entirely;
   // an auto-hidden bar would still flash on Alt and steal keyboard shortcuts.
   Menu.setApplicationMenu(null);
-  win = new BrowserWindow({ width: 1480, height: 950, minWidth: 1050, minHeight: 720, show: !smokeTest && !uiTest, backgroundColor: '#0b1018', title: 'FORGE — FPS Suite',
+  win = new BrowserWindow({ width: 1480, height: 950, minWidth: 1050, minHeight: 720, show: false, backgroundColor: '#0b1018', title: 'FORGE — FPS Suite',
     autoHideMenuBar: true, menu: null,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  win.maximize();
   win.removeMenu();
+  const preferences = require('./preferences.cjs');
+  const settingsFile = path.join(app.getPath('userData'), 'settings.json');
+  const updater = require('./updater.cjs').createUpdater({
+    updater: require('electron-updater').autoUpdater, enabled: app.isPackaged && !smokeTest && !uiTest,
+    send: state => { if (win && !win.isDestroyed()) win.webContents.send('update:state', state); }
+  });
+  ipcMain.handle('settings:get', async event => { check(event); return preferences.read(settingsFile); });
+  ipcMain.handle('settings:save', async (event, value) => { check(event); return preferences.write(settingsFile, value); });
+  ipcMain.handle('update:state', event => { check(event); return updater.state(); });
+  ipcMain.handle('update:check', event => { check(event); return updater.check(); });
+  ipcMain.handle('update:download', event => { check(event); return updater.download(); });
+  ipcMain.handle('update:install', async event => {
+    check(event); assertIdle();
+    const dirty = await win.webContents.executeJavaScript('!!(window.__forge?.store.dirty.project || window.__forge?.store.dirty.level)');
+    if (dirty) throw new Error('Save or discard unsaved work before installing the update.');
+    const choice = await dialog.showMessageBox(win, { type: 'question', buttons: ['Cancel', 'Restart and install'], defaultId: 0, cancelId: 0, message: 'Restart Forge to install the downloaded update?', detail: 'Project engines are upgraded separately, with your approval and backups.' });
+    if (choice.response !== 1) return false;
+    quitting = true; gameWin?.destroy(); await closePreviewServer(); updater.install(); return true;
+  });
   win.on('close', event => {
     if (quitting) return;
     const answer = win.webContents.executeJavaScript('!!(window.__forge?.store.dirty.project || window.__forge?.store.dirty.level)');
@@ -267,16 +300,46 @@ app.whenReady().then(async () => {
     return true;
   });
   ipcMain.handle('project:assets', async event => { check(event); if (!root) throw new Error('Choose a project first.'); return listAssets(root); });
+  ipcMain.handle('project:documents', async event => { check(event); return root ? documents.list(root, await contract()) : []; });
+  ipcMain.handle('engine:plan', async event => {
+    check(event); if (!root) throw new Error('Open a project first.'); assertIdle();
+    const { writes, ...proposal } = await upgrades.plan(root, TEMPLATE_ROOT, await contract()); return proposal;
+  });
+  ipcMain.handle('engine:upgrade', async (event, token, approved) => {
+    check(event); if (!root) throw new Error('Open a project first.'); assertIdle();
+    if (typeof token !== 'string' || !Array.isArray(approved) || approved.some(p => typeof p !== 'string')) throw new Error('Invalid upgrade approval.');
+    const target = root; building = true;
+    try {
+      gameWin?.destroy(); await closePreviewServer();
+      const result = await upgrades.upgrade(target, TEMPLATE_ROOT, await contract(), token, approved);
+      return { ...result, project: { ...await template.readProject(target, await contract()), engine: await upgrades.status(target, TEMPLATE_ROOT), baseURL } };
+    } finally { building = false; }
+  });
+  ipcMain.handle('engine:backups', async event => { check(event); return root ? upgrades.backups(root) : []; });
+  ipcMain.handle('engine:restore', async (event, id) => {
+    check(event); if (!root) throw new Error('Open a project first.'); assertIdle();
+    const target = root; building = true;
+    try {
+      gameWin?.destroy(); await closePreviewServer();
+      const result = await upgrades.restore(target, id);
+      return { ...result, project: { ...await template.readProject(target, await contract()), engine: await upgrades.status(target, TEMPLATE_ROOT), baseURL } };
+    } finally { building = false; }
+  });
   ipcMain.handle('project:save', async (event, relative, text) => {
     check(event); if (!root) throw new Error('Choose a project first.');
-    const { validateProject, validateLevel } = await import('../../src/authoring/Project.js');
-    (relative === 'public/authoring/project.json' ? validateProject : validateLevel)(JSON.parse(text));
-    await saveJSON(root, relative, text);
+    if (typeof text !== 'string' || Buffer.byteLength(text) > 16 * 1024 * 1024) throw new Error('JSON exceeds 16 MB.');
+    const schema = await contract(), data = JSON.parse(text);
+    if (relative === 'public/authoring/project.json') await documents.saveProject(root, data, schema);
+    else {
+      const match = /^public\/levels\/([\w-]+)\.json$/.exec(relative);
+      if (!match) throw new Error('Save destination not allowed.');
+      await documents.saveScene(root, match[1], data, schema);
+    }
   });
   ipcMain.handle('project:import', async event => {
     check(event); if (!root) throw new Error('Choose a project first.');
     assertIdle(); const target = root;
-    const result = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Game assets', extensions: ['glb', 'png', 'jpg', 'jpeg', 'webp', 'mp3', 'wav', 'ogg', 'woff2', 'woff', 'ttf', 'otf'] }] });
+    const result = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Game assets', extensions: ['glb', 'ico', 'png', 'jpg', 'jpeg', 'webp', 'mp3', 'wav', 'ogg', 'woff2', 'woff', 'ttf', 'otf'] }] });
     if (result.canceled) return [];
     const files = []; for (const source of result.filePaths) files.push(await importAsset(target, source)); return files;
   });
@@ -294,6 +357,7 @@ app.whenReady().then(async () => {
     if (typeof level !== 'string' || !/^[\w-]+$/.test(level)) throw new Error('Select a valid scene filename.');
     assertIdle(); building = true;
     try {
+      await documents.compile(root, await contract());
       await ensureToolchain(root);
       if (!previewServer || previewRoot !== root) {
         await closePreviewServer();
@@ -324,7 +388,11 @@ app.whenReady().then(async () => {
         webPreferences: { preload: path.join(__dirname, 'game-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
       gameWin.removeMenu(); gameWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
       gameWin.webContents.on('will-navigate', (e, target) => { if (!target.startsWith(previewServer?.url || 'about:blank')) e.preventDefault(); });
-      gameWin.on('closed', () => { gameWin = null; if (win && !win.isDestroyed()) win.webContents.send('game:state', false); });
+      const openedPreview = gameWin;
+      gameWin.on('closed', () => {
+        if (gameWin === openedPreview) gameWin = null;
+        if (win && !win.isDestroyed()) { win.webContents.send('game:state', false); win.show(); win.focus(); }
+      });
       gameWin.webContents.on('console-message', event => {
         if (event.level === 'error' || event.level === 'warning') { previewNoise.push(event.message); win?.webContents.send('project:log', `[Game ${event.level}] ${event.message}`); }
       });
@@ -334,12 +402,12 @@ app.whenReady().then(async () => {
     const deadline = Date.now() + 90000; // first boot may cold-optimize vite deps
     while (Date.now() < deadline) {
       if (!gameWin || gameWin.isDestroyed()) throw new Error('Game preview was closed before it finished loading.');
-      const state = await gameWin.webContents.executeJavaScript('({ ready: !!window.__menu, error: window.__bootError || "" })');
+      const state = await probeWindow(gameWin, '({ ready: !!window.__menu, error: window.__bootError || "" })');
       if (state.error) { gameWin.destroy(); throw new Error(`Game preview failed: ${state.error}`); }
       if (state.ready) { win.webContents.send('game:state', true); return true; }
       await new Promise(resolve => setTimeout(resolve, 150));
     }
-    const diagnostic = await gameWin.webContents.executeJavaScript('({url:location.href, title:document.title, state:document.readyState, status:document.getElementById("loading-screen")?.textContent, menu:!!window.__menu})');
+    const diagnostic = await probeWindow(gameWin, '({url:location.href, title:document.title, state:document.readyState, status:document.getElementById("loading-screen")?.textContent, menu:!!window.__menu})');
     gameWin.destroy(); throw new Error(`Game preview did not finish loading within 90 seconds: ${JSON.stringify(diagnostic)}. ${previewNoise.join('; ')}`);
     } catch (error) {
       if (gameWin && !gameWin.isDestroyed()) gameWin.destroy();
@@ -350,19 +418,22 @@ app.whenReady().then(async () => {
   ipcMain.handle('game:stop', event => { check(event); gameWin?.destroy(); return true; });
   ipcMain.handle('project:scene', async (event, filename) => {
     check(event); if (!root || !/^[\w-]+$/.test(filename)) throw new Error('Invalid scene.');
-    return (await contract()).validateLevel(JSON.parse(await fs.readFile(await scoped(root, `public/levels/${filename}.json`), 'utf8')));
+    return documents.readScene(root, filename, await contract());
   });
   ipcMain.handle('project:scene-delete', async (event, filename) => {
     check(event); if (!root || !/^[\w-]+$/.test(filename)) throw new Error('Invalid scene.');
     // fs.rm without force fails loudly on a missing file instead of lying.
-    await fs.rm(await scoped(root, `public/levels/${filename}.json`));
+    if (await documents.enabled(root)) await documents.applyWrites(root, new Map([[documents.scenePath(filename), null], [`public/levels/${filename}.json`, null]]));
+    else await fs.rm(await scoped(root, `public/levels/${filename}.json`));
     return true;
   });
   // Paint the branded loading screen first. The window is already visible at
   // this point, so without it the suite sits on a flat background colour until
   // the editor bundle reaches its first paint, which reads as a hang.
   await win.loadFile(path.join(__dirname, 'splash.html'));
+  if (!uiTest && !smokeTest) win.show();
   await win.loadFile(path.join(__dirname, '../../dist/toolsuite/index.html'));
+  if (!uiTest && !smokeTest && app.isPackaged && (await preferences.read(settingsFile)).autoUpdate) void updater.check();
   if (uiTest) {
     win.show();
     const { runUITest } = require('./ui-test.cjs');
@@ -440,15 +511,24 @@ app.whenReady().then(async () => {
         let attempts = 0;
         const timer = setInterval(() => {
           if (window.__forge && window.forgeDesktop) {
-            clearInterval(timer); resolve({ bridge: !!window.forgeDesktop.save, tabs: [...document.querySelectorAll('nav button')].map(button => button.textContent), scene: !!document.querySelector('.workspace canvas'), dock: !!document.querySelector('.bottom-dock'), build: typeof window.forgeDesktop.buildGame, projects: typeof window.forgeDesktop.listProjects, preview: typeof window.forgeDesktop.previewGame });
+            // Workspaces live in the Window menu, so open it once, read the
+            // item labels and close it again — the same route a user takes.
+            const menubar = [...document.querySelectorAll('.topbar .menubar button')];
+            const trigger = menubar.find(button => button.textContent === 'Window');
+            trigger?.click();
+            const tabs = [...document.querySelectorAll('.context-menu button')].map(button => button.textContent.replace('●', '').trim());
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            clearInterval(timer); resolve({ bridge: !!window.forgeDesktop.save, menus: menubar.map(button => button.textContent), tabs, home: !!document.querySelector('.project-launcher'), dock: !!document.querySelector('.bottom-dock'), build: typeof window.forgeDesktop.buildGame, projects: typeof window.forgeDesktop.listProjects, preview: typeof window.forgeDesktop.previewGame });
           } else if (++attempts > 100) { clearInterval(timer); reject(new Error('Desktop renderer did not boot.')); }
         }, 50);
       })`);
       // The workspace list is checked by name, not by count, so adding a
       // workspace cannot silently pass or break this smoke test.
       const WORKSPACES = ['Scene', 'Weapons', 'Player', 'Animation', 'UI', 'Game', 'Home'];
+      const MENUS = ['File', 'Edit', 'Window'];
       const missing = WORKSPACES.filter(name => !result.tabs?.includes(name));
-      if (!result.bridge || missing.length || !result.scene || !result.dock) throw new Error(`Missing desktop bridge or engine workspace: ${missing.length ? `no ${missing.join(', ')} tab` : 'bridge, viewport or dock missing'}`);
+      const missingMenus = MENUS.filter(name => !result.menus?.includes(name));
+      if (!result.bridge || missing.length || missingMenus.length || !result.home || !result.dock) throw new Error(`Missing desktop bridge or editor chrome: ${missing.length ? `no ${missing.join(', ')} workspace` : missingMenus.length ? `no ${missingMenus.join(', ')} menu` : 'bridge, viewport or dock missing'}`);
       if (!result.build || !result.projects || !result.preview) throw new Error('Missing project build/run/preview capabilities.');
       // Creating or repairing a project copies real files, so the template has to sit
       // unpacked next to the asar in a packaged build. A source run proves nothing
@@ -458,7 +538,7 @@ app.whenReady().then(async () => {
         if (!await fs.access(path.join(TEMPLATE_ROOT, entry)).then(() => true, () => false)) unreachable.push(entry);
       }
       if (unreachable.length) throw new Error(`Template is not readable from ${TEMPLATE_ROOT}; missing ${unreachable.join(', ')}`);
-      const message = `Desktop smoke test passed: sandboxed bridge, project menu, ${WORKSPACES.length}-workspace editor (${WORKSPACES.join(', ')}) and a readable project template.`;
+      const message = `Desktop smoke test passed: sandboxed bridge, ${MENUS.join('/')} menu bar, ${WORKSPACES.length}-workspace editor (${WORKSPACES.join(', ')}) and a readable project template.`;
       process.stdout.write(message + '\n');
       await save(`${message}\nReport: ${reportFile}\n`);
       app.exit(0);

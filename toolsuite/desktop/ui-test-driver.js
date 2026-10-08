@@ -24,19 +24,54 @@ export default async function driveUI(root) {
     return false;
   };
   const setValue = async (el, value) => { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); await wait(80); };
+  /* ---- file-browser dock helpers ---- */
+  const treeRow = label => [...document.querySelectorAll('.folder-tree .tree-row')].find(b => b.textContent === label);
+  const openTreeFolder = async label => { const row = treeRow(label); await click(row, `tree folder ${label}`); return !!row; };
+  const listRows = () => [...document.querySelectorAll('.file-list .file-row')];
+  const listNames = () => listRows().map(row => row.querySelector('.file-name-text')?.textContent);
+  const fileRow = name => listRows().find(row => row.querySelector('.file-name-text')?.textContent === name);
+  const openFileRow = async name => { const row = fileRow(name); if (row) row.querySelector('.file-label').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); await wait(120); return !!row; };
+  /** Both windows that hold scenes: the file browser follows the open branch. */
+  const openScenesFolder = async () => { await openTreeFolder('Forge documents'); await openTreeFolder('Scenes'); };
+  /* ---- menu-bar helpers ---- */
+  const menuButton = label => [...document.querySelectorAll('.topbar .menubar button')].find(b => b.textContent === label);
+  const openMenu = async label => { await click(menuButton(label), `${label} menu`); return menuLabels(); };
   const setChecked = async (el, value) => { el.checked = value; el.dispatchEvent(new Event('change', { bubbles: true })); await wait(80); };
 
+  check('editor always starts on the dedicated project Home', !!document.querySelector('.project-launcher') && document.querySelector('.bottom-dock').hidden && document.querySelector('.commandbar').hidden);
+  check('branding uses the Forge icon and RGE text', !!document.querySelector('.brand img') && document.querySelector('.brand').textContent === 'RGE');
   const { store, launch } = window.__forge;
   const tool = () => window.__forge.tool;
 
   /* ---- project ---- */
-  await store.openProject(root);
+  await window.__forge.openProject(root);
   check('opens a project through the native bridge', store.root === root, store.root);
   check('loads authored project data', store.project.ui.screens.length > 0, `${store.project.ui.screens.length} screens`);
   check('lists project assets', store.assets.some(a => a.path.endsWith('.glb')), `${store.assets.length} assets`);
+  check('empty engine-v recommends an upgrade', store.engine.needsUpgrade && !store.engine.current);
+  await until(() => !!document.querySelector('.engine-dialog'), 20000);
+  check('opening an old project automatically prompts for engine review', !!document.querySelector('.engine-dialog'));
+  check('engine review explains preservation and backup location', document.querySelector('.engine-dialog').textContent.includes('.forge/backup') && document.querySelector('.engine-dialog').textContent.includes('animations'));
+  const upgradeButton = find('.engine-dialog button', 'Back up and upgrade');
+  check('custom engine replacement needs approval', upgradeButton.disabled && !!document.querySelector('.conflict-row input'));
+  for (const checkbox of document.querySelectorAll('.conflict-row input')) await setChecked(checkbox, true);
+  await click(upgradeButton, 'Upgrade engine');
+  await until(() => !store.busy && !document.querySelector('.engine-dialog'), 20000);
+  check('upgrade updates marker and resets editor documents safely', store.engine.current === store.engine.newest && !store.engine.needsUpgrade);
+  check('upgrade creates a restorable backup', (await window.forgeDesktop.engineBackups()).length === 1);
+  await click(find('.top-actions button', 'Engine…'), 'Review backups');
+  await until(() => !!document.querySelector('.engine-dialog'), 20000);
+  const originalConfirm = window.confirm; window.confirm = () => true;
+  try { await click(find('.engine-dialog button', 'Restore…'), 'Restore backup'); await until(() => !store.busy && !document.querySelector('.engine-dialog'), 20000); }
+  finally { window.confirm = originalConfirm; }
+  check('restore returns old engine and keeps a safety backup', store.engine.needsUpgrade && (await window.forgeDesktop.engineBackups()).length === 2);
+  await click(find('.top-actions button', 'Engine…'), 'Upgrade restored project');
+  await until(() => !!document.querySelector('.engine-dialog'), 20000);
+  for (const checkbox of document.querySelectorAll('.conflict-row input')) await setChecked(checkbox, true);
+  await click(find('.engine-dialog button', 'Back up and upgrade'), 'Upgrade again');
+  await until(() => !store.busy && !document.querySelector('.engine-dialog'), 20000);
 
-  const projectsButton = find('.top-actions button', 'Projects');
-  await click(projectsButton, 'Projects');
+  await window.__forge.showProjects();
   const drawer = document.querySelector('.project-scrim');
   const opened = await until(() => drawer && !drawer.hidden && !!drawer.querySelector('.project-dialog'));
   check('project dialog opens as a modal', opened, drawer?.hidden ? 'still hidden' : 'no dialog content');
@@ -45,7 +80,6 @@ export default async function driveUI(root) {
   check('project dialog offers build and create', /Build installer/.test(text) && /Create new/.test(text) && /Choose folder/.test(text));
   check('project dialog lists recents', /Recent/.test(text) && !!drawer.querySelector('.project-row'), text.slice(0, 80));
   check('project dialog exposes Close and editor exposes Quit', /Close/.test(text) && !!find('.top-actions button', 'Quit'));
-  check('no stock window menu bar', !document.querySelector('menubar'));
   // Dismiss with the backdrop; Quit is asserted above but never clicked, because
   // it really would end the process.
   drawer.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -283,6 +317,7 @@ export default async function driveUI(root) {
   await rightClick(rowFor(store.level.geometry[1]), 'entity menu for rename');
   check('entity context menu offers Rename', menuLabels().includes('Rename…'), menuLabels().join(' / '));
   await escape();
+  await openScenesFolder();
   check('scenes are managed in the dock instead of a dropdown', !document.querySelector('.commandbar select') && !!document.querySelector('.dock-scenes'), `select=${!!document.querySelector('.commandbar select')} dock=${!!document.querySelector('.dock-scenes')}`);
   store.setSceneFile('temp-scene');
   await store.save('level');
@@ -316,7 +351,7 @@ export default async function driveUI(root) {
   await click(document.querySelector(`button[aria-label="Lock: ${selectedSpec.name || selectedSpec.id}"]`), 'lock object');
   check('locked object detaches gizmo', !levelTool.view.gizmo.object);
   levelTool.edit(ref, spec => { spec.editor = { hidden: false, locked: false }; });
-  await click(find('.top-actions button', 'Projects'), 'projects again'); await escape();
+  await window.__forge.showProjects(); await escape();
   check('Escape closes Projects', document.querySelector('.project-scrim').hidden);
 
   const originalPrompt = window.prompt;
@@ -464,27 +499,79 @@ export default async function driveUI(root) {
   await setValue(document.querySelector('[aria-label="Game name"]'), 'UI Test Arena');
   check('reset restores the defaults but keeps the authored name', (gameTool.edit(() => {}), store.project.game.name === 'UI Test Arena'));
 
-  /* ---- Home + Settings (items 1 and 11) ---- */
-  launch('home');
-  await wait(150);
-  const home = tool();
-  const homeText = document.querySelector('.home-stage')?.textContent || '';
-  check('Home workspace shows a project overview', /Project/.test(homeText) && /weapon/.test(homeText) && /asset/.test(homeText), homeText.slice(0, 120));
-  check('Home offers Play now and Build installer', !!find('.home-actions button', 'Play now') && !!find('.home-actions button', 'Build installer'));
-  check('Home names the open scene and bot count', /Scene:/.test(homeText) && /bot/.test(homeText), homeText.slice(0, 160));
-  const themeRows = [...document.querySelectorAll('.theme-row button')].map(b => b.textContent);
-  check('Settings offers three themes', themeRows.length === 3 && /Midnight/.test(themeRows[0]) && /Moss/.test(themeRows[1]) && /Ember/.test(themeRows[2]), themeRows.join('|'));
-  const mossButton = find('.theme-row button', 'Moss');
-  await click(mossButton, 'Moss theme');
-  check('picking a theme stores it on the project', store.project.settings?.theme === 'moss', JSON.stringify(store.project.settings));
-  check('picking a theme repaints the shell', document.documentElement.style.getPropertyValue('--mint').trim() === '#9ee493', document.documentElement.style.getPropertyValue('--mint'));
-  await click(find('.theme-row button', 'Midnight'), 'Midnight theme');
-  check('switching back restores the default accent', document.documentElement.style.getPropertyValue('--mint').trim() === '#77e4c1', document.documentElement.style.getPropertyValue('--mint'));
-  const volumeField = document.querySelector('[aria-label="Volume (0–1)"]');
-  check('Home exposes default volume and sensitivity', !!volumeField && !!document.querySelector('[aria-label="Mouse sensitivity (0–1)"]'));
-  await setValue(volumeField, '0.45');
-  check('volume default is stored as project data', store.project.settings?.volume === 0.45, JSON.stringify(store.project.settings));
+  /* ---- dedicated Home, Settings and real documents ---- */
+  launch('home'); await wait(150);
+  check('Home is a project launcher with open/create controls', !!find('.launcher-actions button', 'Open project') && !!find('.launcher-actions button', 'New project'));
+  check('Home hides all editing and shipping chrome', document.querySelector('.bottom-dock').hidden && document.querySelector('.commandbar').hidden && document.querySelector('.document-tabs').hidden && !find('.project-launcher button', 'Build installer'));
+  await click(find('.top-actions button', 'Settings'), 'Settings');
+  check('Settings opens a dedicated dialog', document.querySelector('.settings-dialog').open);
+  const theme = document.querySelector('[aria-label="Editor theme"]');
+  check('Settings offers three themes', theme.options.length === 3);
+  const authoredTheme = store.project.settings.theme;
+  await setValue(theme, 'moss');
+  check('editor theme is independent of project data', store.project.settings.theme === authoredTheme && window.__forge.settings.value.theme === 'moss');
+  check('picking a theme repaints the shell', document.documentElement.style.getPropertyValue('--mint').trim() === '#9ee493');
+  await setValue(theme, 'midnight');
+  check('switching back restores the default accent', document.documentElement.style.getPropertyValue('--mint').trim() === '#77e4c1');
+  check('Settings exposes autosave and update preferences', !!document.querySelector('[aria-label="Autosave mode"]') && !!document.querySelector('[aria-label="Automatically check for Forge updates"]'));
+  await click(find('.settings-dialog button', 'Close'), 'Close Settings');
+  launch('game'); await wait(100);
+  await setValue(document.querySelector('[aria-label="Volume (0–1)"]'), '0.45');
+  check('gameplay defaults remain project data in Game properties', store.project.settings.volume === 0.45);
   launch('level'); await wait(100);
+  /* ---- traditional menu bar (File / Edit / Window) ---- */
+  const barLabels = [...document.querySelectorAll('.topbar .menubar button')].map(b => b.textContent);
+  check('topbar is a File / Edit / Window menu bar', barLabels.join(' / ') === 'File / Edit / Window', barLabels.join(' / '));
+  check('no activity sidebar and document tabs still open documents', !document.querySelector('.activity-sidebar') && !![...document.querySelectorAll('.document-tabs button[role="tab"]')].find(tab => tab.textContent.endsWith('.fss')));
+  check('the menu bar names the open workspace', /SCENE/i.test(document.querySelector('.workspace-title')?.textContent || ''), document.querySelector('.workspace-title')?.textContent);
+  const fileItems = await openMenu('File');
+  check('File menu carries project, save and shipping verbs', ['New project…', 'Open project…', 'Save', 'Import files…', 'Build installer…', 'Settings…', 'Quit'].every(label => fileItems.includes(label)), fileItems.join(' / '));
+  await escape();
+  const editItems = await openMenu('Edit');
+  check('Edit menu carries undo, redo and JSON import', editItems.some(label => label.startsWith('Undo')) && editItems.includes('Redo') && editItems.includes('Import JSON…'), editItems.join(' / '));
+  await escape();
+  check('Escape closes a menu-bar dropdown', !document.querySelector('.context-menu'));
+  const windowItems = await openMenu('Window');
+  check('Window menu opens every editing workspace', ['Scene', 'Weapons', 'Player', 'Animation', 'UI', 'Game', 'Home'].every(name => windowItems.some(label => label.startsWith(name))), windowItems.join(' / '));
+  await click(find('.context-menu button', 'Weapons'), 'Window → Weapons');
+  check('choosing a workspace in the Window menu switches the editor', /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''), document.querySelector('.workspace-title')?.textContent);
+  await openMenu('Window');
+  check('the Window menu marks the open workspace', menuLabels().some(label => label.startsWith('Weapons') && label.includes('●')), menuLabels().join(' / '));
+  await escape();
+  launch('level'); await wait(150);
+
+  /* ---- file-browser dock ---- */
+  await openTreeFolder('src / assets');
+  check('assets dock is a file browser with an Up button and breadcrumbs', !!document.querySelector('.folder-tree') && !!document.querySelector('.file-list') && !!document.querySelector('.file-nav .file-up') && !!document.querySelector('.file-crumbs'));
+  const rootNames = listNames();
+  check('folders are listed first and typed as folders', rootNames.includes('models') && rootNames.includes('images')
+    && rootNames.every((name, i) => i === 0 || rootNames[i - 1].localeCompare(name) <= 0)
+    && listRows().every(row => row.querySelector('.file-kind')?.textContent === 'Folder'), rootNames.join(', '));
+  await openFileRow('models');
+  check('double-clicking a folder enters it', listNames().includes('players') && /models/.test(document.querySelector('.file-crumbs').textContent), `${listNames().join(', ')} · ${document.querySelector('.file-crumbs').textContent}`);
+  await click(find('.file-nav button', '↑ Up'), 'up one folder');
+  check('the Up button walks back out of the folder', !listNames().includes('players'), listNames().join(', '));
+  await openFileRow('models');
+  await openTreeFolder('players');
+  const glbRow = fileRow('rig-test.glb');
+  check('a file row names its type and size', !!glbRow && /GLB model/.test(glbRow.textContent) && /KB/.test(glbRow.textContent), glbRow?.textContent?.trim());
+  await rightClick(glbRow, 'file context menu');
+  check('file rows offer file-browser verbs', menuLabels().includes('Open') && menuLabels().includes('Open file location'), menuLabels().join(' / '));
+  await escape();
+  const beforeGeometry = store.level.geometry.length;
+  await openFileRow('rig-test.glb');
+  check('double-clicking a file hands it to the open workspace', store.level.geometry.length === beforeGeometry + 1 && /rig-test\.glb$/.test(store.level.geometry.at(-1)?.gltfUrl || ''), store.level.geometry.at(-1)?.gltfUrl);
+  tool().remove();
+  check('the handed-over object deletes again', store.level.geometry.length === beforeGeometry);
+  const searchBox = document.querySelector('input[aria-label="Search assets"]');
+  searchBox.value = 'rig-white'; searchBox.dispatchEvent(new Event('input', { bubbles: true }));
+  check('search filters the open folder', listNames().join() === 'rig-white.glb', listNames().join(', '));
+  searchBox.value = ''; searchBox.dispatchEvent(new Event('input', { bubbles: true }));
+  await openScenesFolder();
+  const levelRow = fileRow('ui-test.fss');
+  check('Forge document folders list their real files', !!levelRow && /Scene file/.test(levelRow.textContent), levelRow?.textContent?.trim());
+  check('Engine dialog reachable from the topbar', !!find('.top-actions button', 'Engine…'));
+  check('new projects use authoritative Forge documents', store.documentMode && (await window.forgeDesktop.documents()).some(item => item.name.endsWith('.fsw')));
 
   /* ---- imported player skeleton, body clips and gun/hand/finger clips ---- */
   launch('player'); await wait(100);
@@ -495,9 +582,52 @@ export default async function driveUI(root) {
   await setValue(document.querySelector('[aria-label="Player GLB"]'), rigAsset.path);
   const rigLoaded = await until(() => playerTool.inventory.bones.includes('Finger'), 12000);
   check('player GLB exposes arm meshes and hand/finger bones', rigLoaded && playerTool.inventory.meshes.some(mesh => mesh.name === 'ArmsMesh' && mesh.skinned));
-  await setChecked(document.querySelector('[aria-label="Show mesh: ArmsMesh"]'), true);
+  /* embedded-texture guidance (item 1): white and textured variants of the
+     same rig prove both the re-export guidance and that images survive the
+     shared model cache and its per-mount SkeletonUtils clones. */
+  const statusEl = document.getElementById('status');
+  const texturedAsset = store.assets.find(asset => asset.path.endsWith('/rig-textured.glb'));
+  const whiteAsset = store.assets.find(asset => asset.path.endsWith('/rig-white.glb'));
+  if (!texturedAsset || !whiteAsset) throw new Error('Textured/white rig fixtures are missing from the native asset list.');
+  await setValue(document.querySelector('[aria-label="Player GLB"]'), whiteAsset.path);
+  await until(() => playerTool.inventory.bones.includes('Finger') && /plain white/.test(statusEl.textContent), 12000);
+  const whiteMesh = playerTool.meshByName.get('ArmsMesh');
+  check('a textureless white GLB is reported with export guidance', /plain white/.test(statusEl.textContent) && !!whiteMesh && !whiteMesh.material.map, `${statusEl.textContent} · map=${!!whiteMesh?.material?.map}`);
+  await setValue(document.querySelector('[aria-label="Player GLB"]'), texturedAsset.path);
+  const texturedReady = await until(() => !!playerTool.meshByName.get('ArmsMesh')?.material?.map?.image, 12000);
+  const texturedMesh = playerTool.meshByName.get('ArmsMesh');
+  const textureImage = texturedMesh?.material?.map?.image;
+  check('embedded GLB textures survive the shared model cache and clones', !!texturedReady && !!textureImage, `image=${textureImage ? textureImage.width : 'null'}`);
+  check('a textured model is not flagged as plain white', !/plain white/.test(statusEl.textContent), statusEl.textContent);
+  /* The legacy export form: three dropped KHR_materials_pbrSpecularGlossiness,
+     and real Sketchfab/Blender art keeps every texture inside it. */
+  const specAsset = store.assets.find(asset => asset.path.endsWith('/rig-specgloss.glb'));
+  if (!specAsset) throw new Error('Specular-glossiness rig fixture is missing from the native asset list.');
+  await setValue(document.querySelector('[aria-label="Player GLB"]'), specAsset.path);
+  const specReady = await until(() => !!playerTool.meshByName.get('ArmsMesh')?.material?.map?.image, 12000);
+  const specMesh = playerTool.meshByName.get('ArmsMesh');
+  check('a legacy specular-glossiness GLB keeps its embedded texture', !!specReady && specMesh?.material?.map?.image?.width === 8, `image=${specMesh?.material?.map?.image?.width ?? 'null'}`);
+  check('the legacy shim reads glossiness and keeps dielectric specular non-metallic', Math.abs((specMesh?.material?.roughness ?? -1) - 0.75) < 1e-3 && specMesh?.material?.metalness === 0, `roughness=${specMesh?.material?.roughness} metalness=${specMesh?.material?.metalness}`);
+  check('a shimmed legacy model is not flagged as plain white', !/plain white/.test(statusEl.textContent), statusEl.textContent);
+  await setValue(document.querySelector('[aria-label="Player GLB"]'), rigAsset.path);
+  await until(() => playerTool.inventory.bones.includes('Finger'), 12000);
+  check('mesh tickboxes stay hidden until first-person arms are enabled', !document.querySelector('[aria-label="Show mesh: ArmsMesh"]'));
   await setChecked(document.querySelector('[aria-label="Enable first-person arms"]'), true);
+  await until(() => !!document.querySelector('[aria-label="Show mesh: ArmsMesh"]'));
+  check('enabling first-person arms reveals the mesh tickboxes', !!document.querySelector('[aria-label="Show mesh: ArmsMesh"]'));
+  await setChecked(document.querySelector('[aria-label="Show mesh: ArmsMesh"]'), true);
   check('first-person mesh selection is stored in player data', store.project.player.firstPerson.enabled && store.project.player.firstPerson.meshes.join() === 'ArmsMesh');
+  check('selected first-person meshes are highlighted in the viewport', playerTool.view.helpers.size >= 1);
+  const highlightBefore = playerTool.view.helpers.size;
+  playerTool.selectPart(playerTool.meshByName.get('ArmsMesh'));
+  check('clicking a mesh in the view toggles it out of the first-person arms', store.project.player.firstPerson.meshes.length === 0 && playerTool.view.helpers.size < highlightBefore, `helpers ${playerTool.view.helpers.size}`);
+  playerTool.selectPart(playerTool.meshByName.get('ArmsMesh'));
+  check('clicking it again restores the first-person arm mesh', store.project.player.firstPerson.meshes.join() === 'ArmsMesh' && playerTool.view.helpers.size === highlightBefore);
+  check('model buffers are cached across tool switches', (() => {
+    const before = window.__forge.modelCache.entries;
+    launch('weapon'); launch('player');
+    return window.__forge.modelCache.entries >= 1 && before >= 1;
+  })());
   await click(find('.workspace button', 'Animate full player'), 'animate body');
   const bodyAnimation = tool();
   check('body animation opens the upright imported rig', await until(() => bodyAnimation.nodes.has('player:Finger') && !!bodyAnimation.defaults, 12000));
@@ -507,6 +637,21 @@ export default async function driveUI(root) {
   check('player clips store keyed finger bones', bodyAnimation.clip().kind === 'player' && bodyAnimation.clip().tracks.some(track => track.target === 'player:Finger' && track.keys.some(key => key.time === 0.5)));
   launch('player'); await wait(100);
   await setValue(document.querySelector('[aria-label="Player idle"]'), bodyClip);
+  /* damage hitboxes (item 8) */
+  const hitboxPlayer = tool();
+  await click(find('.workspace button', '+ Head'), 'add head hitbox');
+  await click(find('.workspace button', '+ Legs'), 'add legs hitbox');
+  const headBox = store.project.player.hitboxes.find(box => box.part === 'head');
+  check('hitboxes are authored as cubes on the player rig', store.project.player.hitboxes.length === 2 && !!headBox && hitboxPlayer.hitboxCubes.has(headBox.id));
+  hitboxPlayer.selectedHitbox = headBox.id; hitboxPlayer.attachHitboxGizmo();
+  const headCube = hitboxPlayer.hitboxCubes.get(headBox.id);
+  headCube.position.set(0, 1.7, 0);
+  hitboxPlayer.view.gizmo.setMode('translate'); hitboxPlayer.gizmoTransformed(headCube);
+  check('dragging a hitbox cube stores its new rig-space position', store.project.player.hitboxes.find(box => box.id === headBox.id).position[1] === 1.7, JSON.stringify(store.project.player.hitboxes.find(box => box.id === headBox.id).position));
+  const rig = hitboxPlayer.rigRoot; rig.updateWorldMatrix(true, true);
+  const worldPoint = new headCube.position.constructor(0, 1.7, 0).applyMatrix4(rig.matrixWorld);
+  check('hitboxes resolve the part at a world point', window.__forge.hitboxPartAt(store.project.player.hitboxes, rig, worldPoint) === 'head');
+  check('a point below all hitboxes resolves to no part', window.__forge.hitboxPartAt(store.project.player.hitboxes, rig, new headCube.position.constructor(0, 0.01, 0).applyMatrix4(rig.matrixWorld)) === null);
   await click(find('.workspace button', 'Animate arms with gun'), 'animate gun arms');
   const armAnimation = tool();
   check('gun animation combines weapon and the reused player skeleton', await until(() => armAnimation.nodes.has('player:Finger') && !!armAnimation.defaults, 12000));

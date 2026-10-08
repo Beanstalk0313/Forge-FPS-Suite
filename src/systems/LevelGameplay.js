@@ -50,8 +50,8 @@ export function applyTriggerActions(actions, { player, weapon, sounds, showMessa
   }
 }
 export class LevelGameplay extends EventTarget {
-  constructor(spec, engine, player, mode = spec.mode || 'sandbox', weapon = null) {
-    super(); this.spec = spec; this.engine = engine; this.player = player; this.mode = mode; this.weapon = weapon;
+  constructor(spec, engine, player, mode = spec.mode || 'sandbox', weapon = null, { rig = null } = {}) {
+    super(); this.spec = spec; this.engine = engine; this.player = player; this.mode = mode; this.weapon = weapon; this.rig = rig;
     this.objectives = new ObjectiveState(mode === 'domination' ? spec.objectives : []);
     this.triggerState = new Map(); this.sounds = new Map(); this.message = ''; this.messageTimer = 0; this.started = false;
     this.markers = new THREE.Group(); engine.scene?.add(this.markers);
@@ -97,7 +97,8 @@ export class LevelGameplay extends EventTarget {
     this.match.register({ id: this.player.id, name: this.player.name, team: playerTeam, isPlayer: true });
     this.squad = new BotSquad({
       engine: this.engine, physics: this.player.physics, spec: botSpecs, match: this.match,
-      player: this.player, spawnPoints: this.spec.spawns || [], tracers: this.weapon?.tracers || null
+      player: this.player, spawnPoints: this.spec.spawns || [], tracers: this.weapon?.tracers || null,
+      rig: this.rig
     });
     this.squad.addEventListener('hit', event => {
       const { victim, amount } = event.detail;

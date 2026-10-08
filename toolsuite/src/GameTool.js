@@ -9,6 +9,7 @@
  */
 import { node, button, field, heading, jsonPanel, guard, toast } from './dom.js';
 import { defaultGameProperties, gameOutput } from '../../src/authoring/Project.js';
+import { createSettings } from './SettingsTool.js';
 
 const section = (parent, title) => {
   const box = node('details', 'component');
@@ -61,6 +62,9 @@ export class GameTool {
       toast('Game properties reset.');
     })));
 
+    const defaults = section(this.center, 'GAMEPLAY DEFAULTS');
+    const settings = createSettings(this.store.project);
+    for (const [key, label] of [['volume', 'Volume (0–1)'], ['sensitivity', 'Mouse sensitivity (0–1)']]) field(defaults, label, settings[key], value => this.store.change('project', project => { project.settings = { ...settings, ...project.settings, [key]: value }; }), { min: 0, max: 1, step: 0.05 });
     const identity = section(this.center, 'IDENTITY');
     field(identity, 'Game name', game.name || '', value => this.edit(properties => { properties.name = value.trim(); }));
     identity.append(node('p', 'muted', 'Empty uses the project name. This becomes the executable, the installer and the shortcut.'));

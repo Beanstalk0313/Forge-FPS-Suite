@@ -1,5 +1,6 @@
 {
   "appId": "com.forge.suite",
+  "publish": { "provider": "github", "owner": "beanstalk0313", "repo": "forge-fps-suite", "releaseType": "release" },
   "productName": "Forge FPS Suite",
   "directories": {
     "output": "release",

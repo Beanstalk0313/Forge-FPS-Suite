@@ -10,6 +10,8 @@ async function fixture(t) {
   const template = path.join(dir, 'template'); await fs.mkdir(template);
   const manifest = { type: 'module', dependencies: { three: '^0.169.0' }, devDependencies: { vite: '^5.4.0', electron: '^44.5.1', 'electron-builder': '^26.15.3' } };
   await fs.writeFile(path.join(template, 'package.json'), JSON.stringify(manifest));
+  await fs.mkdir(path.join(template, 'toolsuite'), { recursive: true });
+  await fs.writeFile(path.join(template, 'toolsuite/engine-version.json'), '{"version":"0.1.14"}');
   for (const file of ['index.html', 'editor.html', 'vite.config.js', 'UI_GUIDE.md', 'src/main.js', 'src/core/Engine.js', 'toolsuite/index.html', 'toolsuite/src/app.js']) { await fs.mkdir(path.dirname(path.join(template, file)), { recursive: true }); await fs.writeFile(path.join(template, file), '// fixture'); }
   await fs.mkdir(path.join(template, 'src/assets'), { recursive: true }); await fs.mkdir(path.join(template, 'public/authoring'), { recursive: true }); await fs.mkdir(path.join(template, 'public/levels'), { recursive: true });
   // The whole authoring folder, not one file: Project.js pulls in its sibling
@@ -56,7 +58,8 @@ test('packaged dependency manifest is used instead of stripped editor manifest',
 test('build identity survives renames, includes game assets, and Run never selects an installer', async t => {
   const { dir, template } = await fixture(t), root = await lifecycle.createProject(template, dir, 'Build');
   const first = await builds.gameConfig(root, false); const file = path.join(root, 'package.json'), pkg = JSON.parse(await fs.readFile(file)); pkg.productName = 'Renamed'; await fs.writeFile(file, JSON.stringify(pkg));
-  const authoredFile = path.join(root, 'public/authoring/project.json'), authored = JSON.parse(await fs.readFile(authoredFile)); authored.name = 'Renamed'; await fs.writeFile(authoredFile, JSON.stringify(authored));
+  const documents = require('../toolsuite/desktop/project-documents.cjs'), contract = await import('../src/authoring/Project.js');
+  const authored = await documents.readProject(root, contract); authored.name = 'Renamed'; await documents.saveProject(root, authored, contract);
   const second = await builds.gameConfig(root, false); assert.equal(second.productName, 'Renamed'); assert.equal(first.appId, second.appId); assert.equal(first.nsis.guid, second.nsis.guid); assert.ok(first.files.includes('dist/**/*')); assert.equal(JSON.parse(await fs.readFile(file)).version, '0.1.2');
   await fs.mkdir(path.join(root, 'release')); await fs.writeFile(path.join(root, 'release/Build-Setup.exe'), 'installer');
   assert.equal(await builds.runnableGame(root), null); assert.ok(await builds.newestInstaller(root));

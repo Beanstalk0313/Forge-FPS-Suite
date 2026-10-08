@@ -1,7 +1,7 @@
 {
   "name": "forge-fps-suite",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Forge FPS Suite - author levels, weapons, animations and HUDs, then build a Windows game.",
   "author": "Forge",
   "type": "module",
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",
+    "electron-updater": "^6.8.9",
     "howler": "^2.2.4",
     "three": "^0.169.0"
   },

@@ -9,6 +9,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { scoped, listAssets } = require('./project-files.cjs');
+const documents = require('./project-documents.cjs');
+const upgrades = require('./engine-upgrade.cjs');
 // UI_GUIDE.md is project-facing agent documentation, so new and repaired
 // projects receive it. It is not required for a project to be valid.
 const FILES = ['index.html', 'editor.html', 'vite.config.js', 'UI_GUIDE.md', 'src', 'public', 'toolsuite'];
@@ -29,7 +31,7 @@ async function manifestFrom(template, name) {
     productName: name, version: '0.1.0', private: true, type: 'module',
     description: `${name} — FPS game`, author: 'Game creator',
     scripts: { dev: 'vite', build: 'vite build', preview: 'vite preview' },
-    dependencies: source.dependencies, devDependencies: source.devDependencies,
+    dependencies: Object.fromEntries(Object.entries(source.dependencies || {}).filter(([key]) => key !== 'electron-updater')), devDependencies: source.devDependencies,
     forge: { id: crypto.randomUUID(), entryLevel: 'arena' }
   };
 }
@@ -81,19 +83,19 @@ async function createProject(template, parent, name) {
   await fs.writeFile(path.join(target, 'public/levels/arena.json'), JSON.stringify(level, null, 2) + '\n');
   // A playable team match ships with every new project: bots on both teams.
   await fs.writeFile(path.join(target, 'public/levels/tdm.json'), JSON.stringify(createTdmLevel(), null, 2) + '\n');
+  await upgrades.initialize(target, template, { validateProject, validateLevel });
   return target;
 }
 async function readProject(dir, contract) {
   const missing = await missingParts(dir);
   if (missing.length) return { incomplete: dir, missing };
-  const read = async relative => JSON.parse(await fs.readFile(await scoped(dir, relative), 'utf8'));
-  const project = contract.validateProject(await read('public/authoring/project.json'));
+  const project = await documents.readProject(dir, contract);
   const entry = project.entryLevel || 'arena';
   if (!/^[a-zA-Z0-9_-]+$/.test(entry)) throw new Error('Project entry scene has an invalid filename.');
-  const levels = (await fs.readdir(await scoped(dir, 'public/levels'))).filter(f => /^[a-zA-Z0-9_-]+\.json$/.test(f)).map(f => f.slice(0, -5));
+  const levels = await documents.scenes(dir);
   const levelFile = levels.includes(entry) ? entry : levels.includes('test-level') ? 'test-level' : levels[0];
   if (!levelFile) throw new Error('This project has no scenes. Repair it or create a new project.');
-  const level = contract.validateLevel(await read(`public/levels/${levelFile}.json`));
-  return { root: await fs.realpath(dir), project, level, levelFile, levels, assets: await listAssets(dir) };
+  const level = await documents.readScene(dir, levelFile, contract);
+  return { root: await fs.realpath(dir), project, level, levelFile, levels, documentMode: await documents.enabled(dir), documents: await documents.list(dir, contract), assets: await listAssets(dir) };
 }
 module.exports = { FILES, REQUIRED, missingParts, manifestFrom, repairProject, createProject, readProject, copyAbsent };

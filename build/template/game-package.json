@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",
+    "electron-updater": "^6.8.9",
     "howler": "^2.2.4",
     "three": "^0.169.0"
   },

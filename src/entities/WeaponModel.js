@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createGLTFLoader } from '../systems/GLTFLoaders.js';
 import { DEFAULT_WEAPON } from '../authoring/Project.js';
 import { applyClip, capturePose } from '../authoring/Animation.js';
 import { fitViewmodel, VIEWMODEL_LENGTH, VIEWMODEL_PIVOT_OFFSET } from '../authoring/ModelFit.js';
@@ -82,7 +82,7 @@ export class WeaponModel {
   async _loadArms(config) {
     if (!config?.modelUrl || !config.firstPerson.enabled) return;
     try {
-      const gltf = await new GLTFLoader(this.assets.manager).loadAsync(config.modelUrl);
+      const gltf = await createGLTFLoader(this.assets.manager).loadAsync(config.modelUrl);
       if (this.disposed) { disposeObject3D(gltf.scene); return; }
       try {
         this.armsRoot = mountPlayerRig(gltf.scene, config, { firstPerson: true, arms: this.definition.arms });
@@ -104,7 +104,7 @@ export class WeaponModel {
   async _load(url) {
     if (!url) return this._fallback();
     try {
-      const gltf = await new GLTFLoader(this.assets.manager).loadAsync(url);
+      const gltf = await createGLTFLoader(this.assets.manager).loadAsync(url);
       if (this.disposed) { disposeObject3D(gltf.scene); return; }
       this._fit(gltf.scene);
       this.loaded = true;
@@ -193,6 +193,12 @@ export class WeaponModel {
     const clip = this.animation || this.clips.find(c => c.id === this.definition.animations?.[event]);
     // Idle/walk are repeating states even when their source clip is one-shot.
     if (!this.poseFree) applyClip(this.animationRoot, clip, this.animation ? this.animationTime : this.locomotionTime, { loop: !this.animation });
+    // Skinned arm vertices follow bone matrices only after a skeleton pass;
+    // without it authored hand/finger keys render as a frozen mesh (item 7).
+    if (this.armsRoot) {
+      this.armsRoot.updateMatrixWorld(true);
+      this.armsRoot.traverse(obj => { if (obj.isSkinnedMesh) obj.skeleton.update(); });
+    }
     if (this.kick > 0) this.kick = Math.max(0, this.kick - KICK_DECAY * dt);
   }
 

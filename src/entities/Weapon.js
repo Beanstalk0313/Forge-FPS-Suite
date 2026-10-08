@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WeaponModel } from './WeaponModel.js';
 import { Tracers } from '../systems/Tracers.js';
 import { DEFAULT_WEAPON } from '../authoring/Project.js';
+import { damageForPart } from '../authoring/Hitboxes.js';
 
 /**
  * Weapon: viewmodel + hitscan shooting with a sprayed recoil pattern.
@@ -207,8 +208,12 @@ export class Weapon {
       (item) => item?.alive && item.collider && hit.collider.handle === item.collider.handle
     );
     if (participant) {
-      const killed = participant.takeDamage(this.definition.damage, this.player.id);
-      participant.onHit?.(participant, this.definition.damage);
+      // Damage hitboxes (item 8): resolve the part at the impact point and
+      // scale the shot by this weapon's per-part multiplier table.
+      const part = participant.partAt?.(hit.point) || null;
+      const amount = damageForPart(this.definition, part);
+      const killed = participant.takeDamage(amount, this.player.id, part ? { part } : undefined);
+      participant.onHit?.(participant, amount);
       this.onKillShot?.(participant, killed, hit.point);
       return;
     }

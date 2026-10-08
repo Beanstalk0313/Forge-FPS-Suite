@@ -149,4 +149,6 @@ const out = path.join(__dirname, '..', '..', 'build', 'icon.ico');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 const ico = buildIco();
 fs.writeFileSync(out, ico);
+// The editor imports the same mark from the unpacked toolsuite scaffold.
+fs.writeFileSync(path.join(__dirname, '..', 'icon.ico'), ico);
 process.stdout.write(`Wrote ${out} (${ico.length} bytes, sizes ${SIZES.join(', ')})\n`);

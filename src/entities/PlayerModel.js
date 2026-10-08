@@ -1,8 +1,9 @@
 /** Full-body instance; first-person arms use an independent load of the same GLB. */
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createGLTFLoader } from '../systems/GLTFLoaders.js';
 import { mountPlayerRig } from '../authoring/PlayerRig.js';
 import { capturePose, applyClip } from '../authoring/Animation.js';
+import { hitboxPartAt } from '../authoring/Hitboxes.js';
 import { disposeObject3D } from '../systems/Materials.js';
 import { AssetBarrier } from '../systems/AssetBarrier.js';
 
@@ -20,13 +21,18 @@ export class PlayerModel {
   async load() {
     if (!this.config.modelUrl) return;
     try {
-      const gltf = await new GLTFLoader(this.assets.manager).loadAsync(this.config.modelUrl);
+      const gltf = await createGLTFLoader(this.assets.manager).loadAsync(this.config.modelUrl);
       if (this.disposed) { disposeObject3D(gltf.scene); return; }
       try { this.root = mountPlayerRig(gltf.scene, this.config); }
       catch (error) { disposeObject3D(gltf.scene); throw error; }
       this.group.add(this.root); this.restore = capturePose(this.root);
       await this.assets.ready(); this.update(0);
     } catch (error) { throw new Error(`Player model failed to load: ${error.message || error}`); }
+  }
+  /** Participant contract for the player's own body: authored part at a point. */
+  partAt(worldPoint) {
+    if (!this.root) return null;
+    return hitboxPartAt(this.config.hitboxes, this.root, worldPoint, 1);
   }
   update(dt) {
     if (!this.root) return;

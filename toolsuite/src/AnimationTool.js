@@ -20,6 +20,7 @@ const PROP_LABEL = { position: 'Position', rotation: 'Rotation', scale: 'Scale',
 const TRACK_STEPS = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
 const roundTime = t => Math.round(t * 1000) / 1000; // key times live on a 1 ms grid
 const eulerOf = obj => { const e = new THREE.Euler().setFromQuaternion(obj.quaternion, 'YXZ'); return [e.x, e.y, e.z]; };
+const pickVertex = new THREE.Vector3();
 const tickLabel = t => (t >= 10 ? t.toFixed(0) : t >= 1 ? t.toFixed(1) : t.toFixed(2));
 
 export class AnimationTool {
@@ -80,9 +81,24 @@ export class AnimationTool {
     this.store.change('project', p => { const clip = p.clips.find(c => c.id === id); if (!clip) throw new Error('Create or select a clip first.'); fn(clip); });
   }
   editTrack(trackId, fn) { this.edit(clip => { const track = clip.tracks.find(t => t.id === trackId); if (track) fn(track); }); }
-  /** Raycast resolution: first uniquely named ancestor of the hit mesh, else the whole model. */
-  pickNode(hit) {
+  /**
+   * Raycast resolution: bones live *under* the skinned mesh (mesh → hand →
+   * finger), so clicking a skinned part resolves to the NEAREST unique bone
+   * of its skeleton — posing the mesh node itself cannot deform the skin
+   * (item 7). Non-skinned meshes keep the deepest uniquely named ancestor.
+   */
+  pickNode(hit, info = null) {
     if (!hit) return this.animRoot || null;
+    if (info?.point && hit.isSkinnedMesh && hit.skeleton) {
+      let closest = null, bestDistance = Infinity;
+      for (const bone of hit.skeleton.bones) {
+        if (!bone.name || this.counts.get(bone.name) !== 1) continue;
+        bone.getWorldPosition(pickVertex);
+        const distance = pickVertex.distanceTo(info.point);
+        if (distance < bestDistance) { bestDistance = distance; closest = bone; }
+      }
+      if (closest) return closest;
+    }
     let obj = hit;
     while (obj && obj !== this.animRoot) {
       if (obj.name && this.counts.get(obj.name) === 1) return obj;
@@ -122,6 +138,10 @@ export class AnimationTool {
       if (!obj) { this.held.delete(name); continue; }
       obj.position.copy(pose.p); obj.quaternion.copy(pose.q); obj.scale.copy(pose.s);
     }
+    // Recompute bone matrices now: a paused editor gets no second frame, and
+    // skinned vertices only move when the skeleton is refreshed (item 7).
+    this.animRoot?.updateMatrixWorld(true);
+    this.view.updateSkeletons(this.animRoot);
   }
   setTime(time) {
     const clip = this.clip();

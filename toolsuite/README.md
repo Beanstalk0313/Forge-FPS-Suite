@@ -21,32 +21,47 @@ Use Node 22+ for development. The installed editor includes a Node runtime and b
 
 ## Editor layout
 
-The editor opens directly to **Scene**. **Scene**, **Weapons**, **Player**, **Animation**, **UI**, **Game**, and **Home** share one project without discarding changes when switching tabs.
+Forge starts **maximized on Home**, a dedicated project launcher with Open/New and recent projects. Home has no authoring toolbar, Assets/Console or build actions. In the editor the topbar is a traditional menu bar — **File** (new/open project, Save, Import files, Build installer, Settings, Quit), **Edit** (Undo, Redo, Import JSON) and **Window**, which is how an editing workspace is opened: Scene, Weapons, Player, Animation, UI, Game or Home (the open workspace is marked). There is no left activity sidebar; top document tabs refer to actual scenes, weapons, clips and UI screens. Editor Settings is a separate modal window, and **Engine…** in the top actions opens the project engine dialog.
 
 - Left: hierarchy or content list.
 - Center: 3D viewport, animation timeline, or UI design surface.
 - Right: Inspector.
-- Bottom: persistent **Assets** and **Console** dock.
-- Top: Save, Undo/Redo, scene selection, Play/Stop, Build installer.
+- Bottom (editor only): file-browser **Assets** and **Console** dock.
+- Top (editor only): document tabs, Save, Undo/Redo, scene commands, Play/Stop, Build installer.
+- App header: File/Edit/Window menus, the open workspace name, Forge icon + RGE wordmark, Projects and Settings.
 
-Drag the side separators or the bottom separator to resize panels. Focus a separator and use arrow keys for keyboard resizing. Assets support live search and Use in the current tool. Console retains the latest 500 messages, including build output and runtime failures.
+Drag the side separators or the bottom separator to resize panels. Focus a separator and use arrow keys for keyboard resizing. The Assets dock is a conventional **file browser**: a folder tree on the left (a **Project** root holding **Forge documents** — Scenes/Animations/Weapons/UI — beside the real `src/assets` tree, unfolded along the open branch), and on the right an Up button, clickable breadcrumbs and a file list with **Name / Type / Size** columns, folders first and sorted. Double-click a folder to enter it or a file to hand it to the open workspace; right-click a row for Open, Set as entry scene or Open file location. The dock opens on the project asset tree (`src/assets`); search filters the open folder. Console retains the latest 500 messages, including build output and runtime failures.
 
 ## Projects and saving
 
-**Projects** opens a modal with Choose folder, Create new, recent projects, repair, and build/run actions. Escape, Close and backdrop click dismiss it; Tab stays inside the dialog.
+**Projects** returns to Home. Open project chooses a folder; New project asks for a name and parent folder; recent projects offer Open/Continue, Folder and Remove. Authoring commands and shipping controls do not appear on Home.
 
 Create picks a parent folder and creates a new named game folder. It refuses any existing destination. Each project has its own package manifest, version, persistent build identity, saved `arena` starter scene, and menu title. The installed game template preserves build dependencies separately from Electron's stripped app manifest.
 
-Opening a project loads its project JSON **and its own entry scene**. Incomplete folders offer repair. Repair recursively copies absent files without overwriting authored files. Switching through any editor entry route warns about unsaved work and is blocked while Save, Play preparation, or Build runs.
+Opening a project loads its authoritative documents (or legacy JSON) **and its own entry scene**. Incomplete folders offer repair. Repair recursively copies absent files without overwriting authored files. Switching through any editor entry route warns about unsaved work and is blocked while Save, Play preparation, or Build runs.
 
-Save / Ctrl+S writes both:
+Save / Ctrl+S writes authoring and generated runtime content:
 
-- `public/authoring/project.json`: weapons, animations, UI, entry scene, prefabs.
-- `public/levels/<Save filename>.json`: scene objects and gameplay components.
+- `public/authoring/project.fsp`: project metadata and document index.
+- `public/forge/scenes/<filename>.fss`: scenes.
+- `public/forge/animations/*.fsa`: animation clips.
+- `public/forge/weapons/*.fsw`: weapons.
+- `public/forge/ui/*.fsui`: HUD/menu screens.
+- `public/authoring/project.json` and `public/levels/*.json`: generated runtime caches.
+
+Custom documents contain ordinary JSON envelopes `{format: 'forge', version: 1, type, data}`. IDs remain stable. Weapon/clip/UI filenames use hashes of IDs; readable names appear in the Assets file browser. Windows file association/double-click launch is not registered yet. Legacy JSON-only projects keep their existing storage until a reviewed upgrade. Do not edit generated caches in upgraded projects; edit the document or use Forge. Vite's project config and native Play/Build regenerate caches from authoritative documents.
 
 Writes use temporary files and replacement. Only the saved revision becomes clean: newer edits or filename changes remain unsaved. Browser Save exports both documents as downloads instead of writing disk files.
 
 Recovery is isolated by project folder. Disk content loads first; a recovery banner offers Restore or Discard. Recovery is not a disk save. Native Quit/X asks before closing dirty work.
+
+## Engine upgrades, restore and editor Settings
+
+Missing, empty or older `.forge/engine-v` recommends an upgrade when opening the project. **Engine…** in the top actions (also reachable from Settings) reviews changed files and backup/restore options. Custom or unknown engine files require individual replacement approval; declining leaves the project alone. Downgrades are blocked. Engine and editor code are updated, but imported artwork is excluded, authored content/IDs and game identity/version are preserved, and required format migrations are validated. Invalid authored data blocks the upgrade instead of being discarded.
+
+Every affected file is backed up under `.forge/backup/<timestamp-id>` before changes, with checksum verification and rollback for failed writes. **Restore…** restores only the files covered by that snapshot; it can revert later edits to migrated authored documents, so it creates a safety backup of the current files first. No backups are pruned automatically. External source customization must be reviewed, not blindly merged.
+
+**Settings** controls editor-wide theme, autosave mode/interval and automatic update checks. Default autosave makes recovery snapshots, not disk overwrites; optional disk autosave runs only while idle and not reviewing recovery/a modal. Default gameplay volume/sensitivity live in **Game**. Editor updates check GitHub Releases, ask to download, and require saved work plus confirmation to restart/install. Normal Quit does not install an update. See [UPDATE.md](../UPDATE.md) for release setup and deferred installed-release testing.
 
 ## Play and Build
 
@@ -97,13 +112,14 @@ Runtime controls: WASD, Shift sprint, Space jump, C/Ctrl slide, LMB shoot, RMB A
 
 ## Player models and first-person arms
 
-1. Open **Player → Import player GLB…**, or choose an existing GLB asset. Use a rigged, self-contained GLB exported from your modeler. Meshes and joints need unique names; hand/finger animation requires corresponding bones. No model artwork is supplied by this feature.
+1. Open **Player → Import player GLB…**, or choose an existing GLB asset. Use a rigged, self-contained GLB exported from your modeler. Meshes and joints need unique names; hand/finger animation requires corresponding bones. No model artwork is supplied by this feature. Legacy `KHR_materials_pbrSpecularGlossiness` exports (Sketchfab downloads, older Blender/Substance) are converted on load, so their diffuse maps render instead of flat white. A GLB whose materials genuinely carry no textures is reported on load: re-export with textures embedded (Blender: glTF export → Images → Embedded), otherwise the model renders plain white.
 2. Set **Player height (m)** and orientation; the humanoid stays upright and its skeleton is fitted as one unit without rewriting bind poses.
-3. Under **First-person arms**, select the separate arm/hand meshes and enable them. The same rig is loaded independently for the body and gun arms, so animating one does not mutate the other. Bones remain intact when head/torso meshes are hidden. A single full-body skinned mesh must be split into body/arms meshes in Blender or your modeler; the editor does not cut geometry or retarget rigs.
-4. Choose **Animate full player** for body clips (assign idle/walk in Player), or **Animate arms with gun** for a combined weapon-and-rig timeline. Select shoulders, elbows, hands or fingers in the hierarchy, use Rotate, and record keys as usual. Embedded GLB animation clips can be imported as editable transform keys.
+3. Under **First-person arms**, enable arms and tick the separate arm/hand meshes — each ticked mesh is outlined in the viewport immediately, and **clicking a part of the model in the view toggles it as a first-person arm** (no tab switching to identify parts). The same rig is loaded independently for the body and gun arms, so animating one does not mutate the other. Bones remain intact when head/torso meshes are hidden. A single full-body skinned mesh must be split into body/arms meshes in Blender or your modeler; the editor does not cut geometry or retarget rigs.
+4. Choose **Animate full player** for body clips (assign idle/walk in Player), or **Animate arms with gun** for a combined weapon-and-rig timeline. Clicking a skinned part in the viewport keys its **nearest bone** (posing the mesh node itself cannot deform skin); select shoulders, elbows, hands or fingers in the hierarchy, use Rotate, and record keys as usual — the skeleton is refreshed every frame, so keyed bones visibly deform the arm while paused and in game. Embedded GLB animation clips can be imported as editable transform keys.
 5. In **Weapons**, adjust **Arms with this gun** position/rotation/scale and assign gun+arms clips to idle/walk/fire/reload/equip. These offsets are saved per weapon. The gun and hands render in the same first-person pass and follow recoil/ADS together.
+6. **Damage hitboxes**: place cubes over the model with **+ Head / Torso / Arms / Legs**, drag them with the gizmo (scale edits size) and set each box's body part. Each weapon's **Damage hitboxes** section sets the per-part multiplier; a shot that lands inside a box deals damage × that part's multiplier (missing boxes or a miss default to 1×, so existing scenes behave exactly as before). Bots reuse the authored rig layout scaled to their capsule height.
 
-Player configuration is optional `project.player`; legacy projects and existing gun-only clips still work. Body clips have `kind: "player"`; weapon clips use `kind: "weapon"` (omitted means legacy weapon). Imported player node targets use `player:<original name>` to avoid gun/rig name collisions; `@player` addresses the arms group, and `@root` addresses the clip's body or combined viewmodel animation layer. Full-body instances play idle/walk in the world but are hidden from the local first-person camera to prevent head/torso clipping; third-person gameplay and automatic bot-model replacement are not included.
+Tool switching no longer reloads models: each project caches fetched GLBs per URL and re-parses only when the project changes. Player configuration is optional `project.player`; legacy projects and existing gun-only clips still work. Body clips have `kind: "player"`; weapon clips use `kind: "weapon"` (omitted means legacy weapon). Imported player node targets use `player:<original name>` to avoid gun/rig name collisions; `@player` addresses the arms group, and `@root` addresses the clip's body or combined viewmodel animation layer. Full-body instances play idle/walk in the world but are hidden from the local first-person camera to prevent head/torso clipping; third-person gameplay and automatic bot-model replacement are not included.
 
 ## Animation
 
@@ -127,6 +143,6 @@ This is a single-player FPS creator foundation, not a complete general-purpose e
 
 ## Test outputs
 
-Source desktop tests write `tests/.tmp/desktop-ui-test.txt` and a progress log. Use `--ui-test --no-package` while installer packaging is deferred; this verifies import/setup, skeletal keyframing and live runtime without running build/export packaging. They create a real fresh project with **no dependency junctions or prior build**, exercise the UI, start Play before Build, repair a partial folder, package the game, and initialize its actual executable. Packaged `--ui-test` uses the app user-data `verification/` directory rather than writing into the installation. `--smoke-test` checks the desktop bridge, engine layout and readable installed template.
+Source desktop tests write `tests/.tmp/desktop-ui-test.txt` and a progress log. Use `--ui-test --no-package` while installer packaging is deferred; this verifies import/setup, skeletal keyframing and live runtime without running build/export packaging. They create a real fresh project with **no dependency junctions or prior build**, exercise the UI, start Play before Build, repair a partial folder, package the game, and initialize its actual executable. Packaged `--ui-test` uses the app user-data `verification/` directory rather than writing into the installation. `--smoke-test` checks the desktop bridge, the File/Edit/Window menu bar with all seven workspaces in the Window menu, and a readable installed template.
 
-Debug handles: `window.__forge` (store, launch, tool), `window.__game` (runtime systems), `window.__bootError` (startup failure).
+Debug handles: `window.__forge` (store, launch, tool, hitboxPartAt, modelCache stats), `window.__game` (runtime systems), `window.__bootError` (startup failure).

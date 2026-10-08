@@ -123,7 +123,7 @@ async function startGame(project, params, preview, hud) {
     cleanup.unshift(() => weapon.dispose());
     await weapon.model.ready;
     loading.step('weapons');
-    const gameplay = world.spec ? new LevelGameplay(world.spec, engine, player, params.get('mode') || world.spec.mode || 'sandbox', weapon) : null;
+    const gameplay = world.spec ? new LevelGameplay(world.spec, engine, player, params.get('mode') || world.spec.mode || 'sandbox', weapon, { rig: rigConfig }) : null;
     cleanup.unshift(() => gameplay?.dispose());
     await gameplay?.ready;
     // Bots and the player are one participant list: the weapon, the HUD and the
