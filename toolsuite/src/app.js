@@ -79,10 +79,10 @@ menubar.append(
   ]),
   // Window is how a workspace is opened: the section that edits scenes,
   // weapons, animations, the player rig, UI or game properties.
-  menu('Window', () => TOOLS.map(item => ({
+  menu('Window', () => [...TOOLS.map(item => ({
     label: `${item.name}${item.id === active ? '    ●' : ''}`,
     action: () => { if (store.busy) throw new Error('Wait for the current operation.'); launch(item.id); }
-  })))
+  })), window.forgeDesktop && { label: 'Project engine…', action: () => showEngineDialog(store) }])
 );
 top.append(brand, menubar, projectName, workspaceTitle, actions); app.append(top);
 // No activity sidebar: workspaces come from the Window menu, documents from
@@ -185,8 +185,8 @@ function launch(id = 'level', document = null) {
   if (document?.kind === 'ui') { tool.screenId = document.id; tool.render(); }
   if (id !== 'home') {
     const selected = document || { kind: id, id: id === 'level' ? store.levelFile : id === 'weapon' ? tool.selected : id === 'animation' ? tool.clipId : id === 'ui' ? tool.screenId : id };
-    activeDocument = `${selected.kind}:${selected.id}`;
-    if (!openTabs.some(tab => tab.key === activeDocument)) openTabs.push({ ...selected, key: activeDocument });
+    activeDocument = selected.id ? `${selected.kind}:${selected.id}` : null;
+    if (activeDocument && !openTabs.some(tab => tab.key === activeDocument)) openTabs.push({ ...selected, key: activeDocument });
   }
   const home = id === 'home'; shell.classList.toggle('on-home', home);
   workspaceTitle.textContent = TOOLS.find(item => item.id === id)?.name || '';
@@ -207,9 +207,9 @@ function tabLabel(tab) {
 function syncDocumentTab() {
   if (!tool || active === 'home') return;
   const id = active === 'level' ? store.levelFile : active === 'weapon' ? tool.selected : active === 'animation' ? tool.clipId : active === 'ui' ? tool.screenId : active;
-  if (!id) return;
-  const key = `${active}:${id}`; activeDocument = key;
-  if (!openTabs.some(tab => tab.key === key)) openTabs.push({ kind: active, id, key });
+  if (!id) activeDocument = null;
+  const key = id ? `${active}:${id}` : null; activeDocument = key;
+  if (key && !openTabs.some(tab => tab.key === key)) openTabs.push({ kind: active, id, key });
   openTabs = openTabs.filter(tab => tab.kind === 'level' || ['player', 'game'].includes(tab.kind) || (tab.kind === 'weapon' ? store.project.weapons : tab.kind === 'animation' ? store.project.clips : store.project.ui.screens).some(item => item.id === tab.id));
 }
 function renderTabs() {

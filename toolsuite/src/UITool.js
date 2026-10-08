@@ -7,7 +7,8 @@ import { UIRenderer, ANCHORS, ACTIONS, BINDINGS } from '../../src/ui/UIRenderer.
 import { validateUICSS } from './uiCode.js';
 import { upsertRule } from '../../src/authoring/UICSS.js';
 import { uid, clone } from '../../src/authoring/Project.js';
-import { node, button, field, heading, jsonPanel, guard, toast, onContextMenu, closeContextMenu } from './dom.js';
+import { node, button, field, heading, jsonPanel, guard, toast, onContextMenu, closeContextMenu, organizeInspector, searchField } from './dom.js';
+import { alignElement, PREVIEW_STATES } from './authoringTools.js';
 
 const BASE_FONTS = ['Segoe UI', 'Arial', 'Verdana', 'Tahoma', 'Georgia', 'monospace', 'sans-serif'];
 /** Built-in style snippets; applying one writes a scoped rule into ui.css. */
@@ -27,6 +28,7 @@ export class UITool {
   constructor(host, store) {
     this.store = store; this.screenId = 'hud'; this.elementId = null; this.editing = true;
     this.elementClipboard = null; this.shiftGrid = false; this.mode = 'layout';
+    this.sections = new Map(); this.layerQuery = ''; this.viewportWidth = 'fit'; this.previewPreset = 'normal';
     this.state = { health: 78, ammo: 24, reserve: 180, weapon: 'M4', mode: 'domination', scoreA: 42, scoreB: 37, objective: 'A — capturing 65%', hitmarker: true, ads: false, reloading: false, volume: 0.7, sensitivity: 0.5, message: 'Objective secured' };
     host.innerHTML = ''; host.className = 'workspace';
     this.left = node('aside', 'panel'); this.center = node('section', 'stage'); this.right = node('aside', 'panel inspector');
@@ -35,9 +37,10 @@ export class UITool {
     this.center.append(this.toolbar, this.preview, this.codePanel, node('div', 'stage-hint', 'Right-click a screen or layer for actions · Drag to position, drag a handle to resize · Arrow keys nudge · Shift snaps · The CSS code tab validates styles safely · See UI_GUIDE.md'));
     this.createRenderer();
     this.changed = () => this.render(); store.addEventListener('change', this.changed);
+    this.assetsChanged = () => this.render(); store.addEventListener('assets', this.assetsChanged);
     this.snapKeys = event => { if (event.key === 'Shift') this.shiftGrid = event.type === 'keydown'; };
     this.keys = event => {
-      if (store.busy || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || document.querySelector('.project-scrim:not([hidden])')) return;
+      if (store.busy || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || document.querySelector('.project-scrim:not([hidden]), dialog[open]')) return;
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key === 'c') { event.preventDefault(); guard(() => this.copyElement()); }
@@ -46,7 +49,7 @@ export class UITool {
     // Arrow keys nudge the selected element 1 px (Shift = 10 px), honouring
     // the anchor: moving "left" on a right-anchored element grows the offset.
     this.nudgeKeys = event => {
-      if (store.busy || this.mode !== 'layout' || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || document.querySelector('.project-scrim:not([hidden])')) return;
+      if (store.busy || this.mode !== 'layout' || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || document.querySelector('.project-scrim:not([hidden]), dialog[open]')) return;
       if (!this.elementId || !event.key.startsWith('Arrow')) return;
       const step = event.shiftKey ? 10 : 1;
       const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
@@ -54,6 +57,7 @@ export class UITool {
       if (!dx && !dy) return;
       event.preventDefault(); guard(() => this.nudgeElement(dx, dy));
     };
+    this.resetSnap = () => { this.shiftGrid = false; }; window.addEventListener('blur', this.resetSnap);
     document.addEventListener('keydown', this.snapKeys); document.addEventListener('keyup', this.snapKeys);
     document.addEventListener('keydown', this.keys); document.addEventListener('keydown', this.nudgeKeys);
     this.render();
@@ -61,6 +65,7 @@ export class UITool {
   createRenderer() {
     this.renderer?.dispose();
     if (this.preview.shadowRoot) { const replacement = node('div', 'ui-preview'); this.preview.replaceWith(replacement); this.preview = replacement; }
+    this.preview.style.maxWidth = this.viewportWidth === 'fit' ? '' : `${this.viewportWidth}px`; this.preview.style.margin = 'auto';
     this.renderer = new UIRenderer(this.preview, { resolve: p => this.store.resolve(p),
       select: this.editing ? id => { this.elementId = id || null; this.renderer.highlight(this.elementId); this.renderInspector(); this.renderLayers(); } : null,
       drag: (id, x, y) => guard(() => this.edit(s => {
@@ -250,9 +255,11 @@ export class UITool {
     this.toolbar.append(tab('Layout', 'layout'), tab('CSS code', 'code'));
     if (this.mode === 'layout') this.toolbar.append(button(this.editing ? 'Switch to interactive preview' : 'Switch to layout editing', () => { this.editing = !this.editing; this.createRenderer(); this.render(); }));
     field(this.toolbar, 'Preview mode', this.state.mode, n => { this.state.mode = n; this.render(); }, { options: ['sandbox', 'domination', 'tdm'] });
-    field(this.toolbar, 'Viewport', 'fit', n => { this.preview.style.maxWidth = n === 'fit' ? '' : `${n}px`; this.preview.style.margin = 'auto'; }, { options: [['fit', 'Fit workspace'], ['960', '960px wide'], ['640', '640px wide']] });
+    field(this.toolbar, 'Viewport', this.viewportWidth, value => { this.viewportWidth = value; this.preview.style.maxWidth = value === 'fit' ? '' : `${value}px`; this.preview.style.margin = 'auto'; this.renderer.resize(); }, { options: [['fit', 'Fit workspace'], ['960', '960px wide'], ['640', '640px wide']] });
+    field(this.toolbar, 'Preview scenario', this.previewPreset, value => { this.previewPreset = value; Object.assign(this.state, PREVIEW_STATES[value]); this.renderer.update(this.state); }, { options: [['normal', 'Normal'], ['low-health', 'Low health / ammo'], ['reloading', 'Reloading'], ['downed', 'Downed'], ['aiming', 'Aiming / ADS']] });
     const screen = this.screen(); if (!screen) return;
-    this.layers = node('div'); this.left.append(this.layers);
+    searchField(this.left, 'Search layers', this.layerQuery, value => { this.layerQuery = value; this.renderLayers(); });
+    this.layers = node('div', 'layers'); this.left.append(this.layers);
     this.renderLayers(); this.renderInspector();
     this.preview.hidden = this.mode === 'code'; this.codePanel.hidden = this.mode !== 'code';
     if (this.mode === 'code') { this.ensureCodePanel(); return; }
@@ -294,7 +301,7 @@ export class UITool {
     const add = node('div', 'add-grid');
     for (const type of ['text', 'panel', 'image', 'bar', 'button', 'slider', 'crosshair']) add.append(button(`+ ${type}`, () => this.addElement(type)));
     this.layers.append(add);
-    for (const el of this.screen()?.elements || []) {
+    for (const el of (this.screen()?.elements || []).filter(element => `${element.type} ${this.label(element)}`.toLowerCase().includes(this.layerQuery.toLowerCase()))) {
       const row = button(`${el.type} · ${this.label(el)}`, () => { this.elementId = el.id; this.renderer.highlight(el.id); this.renderInspector(); this.renderLayers(); }, this.elementId === el.id ? 'selected' : '');
       onContextMenu(row, () => this.layerMenu(el));
       this.layers.append(row);
@@ -323,14 +330,21 @@ export class UITool {
     const el = this.element();
     if (el) this.renderElementInspector(el);
     else this.renderScreenInspector(screen);
+    organizeInspector(this.right, this.sections, { collapsed: ['STYLE TEMPLATES', 'FONTS', 'LIVE PREVIEW DATA', 'SCREEN ACTIONS', 'CSS / ADVANCED'] });
   }
   renderElementInspector(el) {
     heading(this.right, 'ELEMENT / INSPECTOR');
     const edit = (key, val) => this.edit(s => { s.elements.find(e => e.id === el.id)[key] = val; });
     field(this.right, 'Element name', el.name || '', n => edit('name', n.slice(0, 64)));
     field(this.right, 'Element ID / CSS selector', el.id, value => { this.edit(s => { s.elements.find(e => e.id === el.id).id = value; }); this.elementId = value; this.render(); });
+    heading(this.right, 'LAYOUT / ALIGNMENT');
     field(this.right, 'Anchor', el.anchor, n => edit('anchor', n), { options: ANCHORS });
-    for (const key of ['x', 'y', 'width', 'height', 'fontSize', 'opacity', 'borderRadius', 'color', 'background']) field(this.right, key, el[key], n => edit(key, n));
+    for (const key of ['x', 'y', 'width', 'height']) field(this.right, key, el[key], n => edit(key, n), { ...(key === 'width' || key === 'height' ? { min: 1 } : {}) });
+    const alignment = node('div', 'ui-align-grid');
+    for (const [label, direction] of [['Left', 'left'], ['Center X', 'center-x'], ['Right', 'right'], ['Top', 'top'], ['Center Y', 'center-y'], ['Bottom', 'bottom']]) alignment.append(button(label, () => this.alignSelected(direction)));
+    this.right.append(alignment, button('Fit inside canvas', () => this.alignSelected('fit')));
+    heading(this.right, 'APPEARANCE / TYPOGRAPHY');
+    for (const key of ['fontSize', 'opacity', 'borderRadius', 'color', 'background']) field(this.right, key, el[key], n => edit(key, n), { ...(key === 'opacity' ? { min: 0, max: 1, step: 0.05 } : {}) });
     field(this.right, 'Font family', el.font || 'Segoe UI', n => edit('font', n), { options: [...new Set([...BASE_FONTS, ...this.fonts().map(f => f.name)])] });
     // Font import lives in the element context too, not only in screen settings.
     this.right.append(button('Upload font and use it here…', () => guard(async () => {
@@ -340,17 +354,27 @@ export class UITool {
       if (added) { edit('font', added.name); toast(`Font "${added.name}" assigned to ${this.label(el)}.`); }
       this.renderInspector();
     })));
+    heading(this.right, 'CONTENT / BEHAVIOR');
     field(this.right, 'Text / {{binding}} template', el.text || '', n => edit('text', n), { multiline: true });
-    field(this.right, 'CSS class(es)', el.className || '', n => edit('className', n));
     field(this.right, 'Visible when', el.visibleWhen || '', n => edit('visibleWhen', n), { options: [['', 'Always'], ...BINDINGS] });
     if (['bar', 'slider'].includes(el.type)) field(this.right, 'Data binding', el.binding || 'health', n => edit('binding', n), { options: el.type === 'slider' ? ['volume', 'sensitivity'] : BINDINGS });
     if (el.type === 'bar') field(this.right, 'Maximum value', el.maxValue || 100, n => edit('maxValue', n), { min: 1 });
     if (el.type === 'button') field(this.right, 'Button action', el.action || 'resume', n => edit('action', n), { options: ACTIONS });
     if (el.type === 'image') this.renderImageInspector(el);
+    heading(this.right, 'CSS / ADVANCED');
+    field(this.right, 'CSS class(es)', el.className || '', n => edit('className', n));
     this.renderTemplatePanel('element');
+    heading(this.right, 'ELEMENT ACTIONS');
     this.right.append(button('Duplicate element', () => { const copy = clone(el); copy.id = uid(el.type); copy.name = `${el.name || el.type} copy`; copy.x += 16; copy.y += 16; this.elementId = copy.id; this.edit(s => s.elements.push(copy)); }),
       button('Delete element', () => { this.elementId = null; this.edit(s => { s.elements = s.elements.filter(e => e.id !== el.id); }); }, 'danger'));
     jsonPanel(this.right, 'Element JSON', el, data => this.edit(s => { if (data.id !== el.id) throw new Error('Use ID field to rename.'); Object.assign(s.elements.find(e => e.id === el.id), data); }));
+  }
+  alignSelected(direction) {
+    const id = this.elementId; if (!id) return;
+    this.store.change('project', project => {
+      const element = project.ui.screens.find(screen => screen.id === this.screenId)?.elements.find(item => item.id === id);
+      if (element) alignElement(element, project.ui, direction);
+    });
   }
   renderImageInspector(el) {
     field(this.right, 'Image asset', el.src || '', n => this.edit(s => { s.elements.find(e => e.id === el.id).src = n; }),
@@ -360,7 +384,6 @@ export class UITool {
     this.right.append(node('p', 'muted', 'Uploaded images are copied into the project assets folder automatically. The name above is just a label; the asset path below is what the game loads.'));
   }
   renderTemplatePanel(scope) {
-    const ui = this.store.project.ui;
     heading(this.right, 'STYLE TEMPLATES');
     for (const template of this.templates()) {
       const row = button(`✦ ${template.name}`, () => guard(() => this.applyTemplate(template, scope)));
@@ -379,6 +402,7 @@ export class UITool {
     field(this.right, 'Screen name', screen.name, n => this.store.change('project', p => { p.ui.screens.find(s => s.id === screen.id).name = n; }));
     field(this.right, 'Screen kind', screen.kind, n => this.store.change('project', p => { p.ui.screens.find(s => s.id === screen.id).kind = n; }), { options: ['hud', 'menu'] });
     field(this.right, 'Mode (all / domination / tdm)', screen.mode, n => this.store.change('project', p => { p.ui.screens.find(s => s.id === screen.id).mode = n; }));
+    heading(this.right, 'DESIGN CANVAS');
     for (const key of ['width', 'height']) field(this.right, `Design ${key}`, this.store.project.ui[key], n => this.store.change('project', p => { p.ui[key] = n; }), { min: 1 });
     this.renderFontPanel();
     this.renderTemplatePanel('screen');
@@ -414,8 +438,10 @@ export class UITool {
   }
   dispose() {
     this.store.removeEventListener('change', this.changed);
+    this.store.removeEventListener('assets', this.assetsChanged);
     document.removeEventListener('keydown', this.snapKeys); document.removeEventListener('keyup', this.snapKeys);
     document.removeEventListener('keydown', this.keys); document.removeEventListener('keydown', this.nudgeKeys);
+    window.removeEventListener('blur', this.resetSnap);
     closeContextMenu();
     this.renderer.dispose();
   }

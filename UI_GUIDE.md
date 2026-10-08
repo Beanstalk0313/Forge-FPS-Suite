@@ -140,6 +140,8 @@ If the runtime needs a menu screen that does not exist, it renders a plain "Clic
 | `bottom-center` | signed horizontal offset from centre | bottom inset |
 | `bottom-right` | right inset | bottom inset |
 
+**Editor layout tools (no schema change):** the selected element's **Layout / alignment** group has Left / Center X / Right / Top / Center Y / Bottom buttons, plus **Fit inside canvas**. These move the actual design-space box and convert the position back to the existing anchor offsets; alignment never renames IDs or changes anchors. Fit also limits an oversized box to the design resolution. Every operation is one undoable project edit. **Search layers** filters the list only. The **Preview scenario** picker simulates Normal, Low health/ammo, Reloading, Downed and Aiming/ADS without saving those values into the project. The Viewport picker remains selected across inspector edits and interactive/layout switches.
+
 Centered axes are placed with a `translate(-50%)` on that axis. `anchor: "center"`, `x: 0`, `y: -120` puts the element **centre** 120 design pixels above the design centre. Right/bottom anchors convert `x`/`y` into insets, which is why dragging an element right decreases its `x`. Do not override the anchor transform in CSS unless you intend to replace the layout.
 
 ### 4.5 Element types

@@ -2,19 +2,21 @@
 import * as THREE from 'three';
 import { Viewport } from './Viewport.js';
 import { WeaponModel } from '../../src/entities/WeaponModel.js';
-import { capturePose } from '../../src/authoring/Animation.js';
 import { DEFAULT_WEAPON, clone, uid } from '../../src/authoring/Project.js';
 import { playerSettings } from '../../src/authoring/PlayerRig.js';
 import { HITBOX_PARTS, PART_LABEL } from '../../src/authoring/Hitboxes.js';
-import { node, button, field, vector, heading, jsonPanel, toast, onContextMenu, closeContextMenu } from './dom.js';
+import { node, button, field, vector, heading, jsonPanel, toast, onContextMenu, closeContextMenu, organizeInspector, searchField } from './dom.js';
+import { WEAPON_PRESETS, weaponStats } from './authoringTools.js';
 const EVENT_LIST = ['idle', 'walk', 'fire', 'reload', 'equip'];
 /** Option labels show duration and flag clips authored for a different model. */
 const clipLabel = (clip, w) => `${clip.name} · ${clip.duration}s${clip.modelUrl && w.modelUrl && clip.modelUrl !== w.modelUrl ? ' · other model' : ''}`;
 const round4 = n => Math.round(n * 10000) / 10000;
+const FIELD_LABELS = { magazineSize: 'Magazine capacity', reserveAmmo: 'Reserve ammunition', damage: 'Base damage', fireRate: 'Shot interval (s)', range: 'Range (m)', reloadTime: 'Reload duration (s)', recoilKick: 'Vertical recoil (rad)', recoilYaw: 'Horizontal recoil (rad)', spreadBase: 'Base spread (rad)', spreadMax: 'Maximum spread (rad)', bloomGrow: 'Spread added per shot', bloomDecay: 'Spread recovery / s', airSpread: 'Airborne spread', adsSpreadMultiplier: 'ADS spread multiplier', adsFov: 'ADS field of view', adsSpeed: 'ADS transition speed' };
 export class WeaponTool {
   constructor(host, store) {
     this.store = store; this.selected = store.project.activeWeapon || store.project.weapons[0]?.id;
     this.aim = false; this.freeView = false; this.target = 'muzzle';
+    this.sections = new Map(); this.weaponQuery = ''; this.preset = 'rifle';
     host.innerHTML = ''; host.className = 'workspace';
     this.left = node('aside', 'panel'); this.center = node('section', 'stage'); this.right = node('aside', 'panel inspector');
     host.append(this.left, this.center, this.right);
@@ -34,12 +36,13 @@ export class WeaponTool {
       this.view.engine.camera.updateProjectionMatrix();
     };
     this.view.engine.onUpdate(this.tick);
+    this.assetsChanged = () => this.render(); store.addEventListener('assets', this.assetsChanged);
     this.changed = () => this.render(); store.addEventListener('change', this.changed);
     document.addEventListener('keydown', this.keys);
     this.render();
   }
   keys = e => {
-    if (e.ctrlKey || e.metaKey || e.altKey || this.store.busy || document.querySelector('.project-scrim:not([hidden])') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || this.store.busy || document.querySelector('.project-scrim:not([hidden]), dialog[open]') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     if (e.key === 'Escape') { closeContextMenu(); return; }
     if (e.key.toLowerCase() === 'g') this.view.mode('translate');
     if (e.key.toLowerCase() === 'r') this.view.mode('rotate');
@@ -96,7 +99,7 @@ export class WeaponTool {
   }
   renderToolbar() {
     this.toolbar.innerHTML = '';
-    this.toolbar.append(button('Toggle ADS preview', () => { this.aim = !this.aim; this.renderToolbar(); }, this.aim ? 'active' : ''));
+    this.toolbar.append(button('Toggle ADS preview', () => { this.aim = !this.aim; this.render(); }, this.aim ? 'active' : ''));
     this.toolbar.append(button('Fire / recoil', () => this.model?.kickBack()), button('Preview reload', () => this.model?.playAnimation('reload')));
     this.viewBtn = button('Free view · orbit', () => this.toggleView(), this.freeView ? 'active' : '');
     this.toolbar.append(this.viewBtn);
@@ -113,16 +116,25 @@ export class WeaponTool {
   signature(w) { return JSON.stringify([w.id, w.modelUrl, w.animations ?? {}, w.arms, this.store.project.player]); }
   renderWeapons() {
     heading(this.left, 'WEAPONS');
+    this.left.append(node('p', 'muted', `${this.store.project.weapons.length} weapons · select to edit`));
+    searchField(this.left, 'Search weapons', this.weaponQuery, value => { this.weaponQuery = value; this.renderWeaponList(); });
+    this.weaponList = node('div', 'weapon-library'); this.left.append(this.weaponList); this.renderWeaponList();
+    heading(this.left, 'CREATE WEAPON');
+    field(this.left, 'Starter preset', this.preset, value => { this.preset = value; }, { options: Object.entries(WEAPON_PRESETS).map(([id, preset]) => [id, preset.name]) });
     this.left.append(button('+ New weapon', () => {
-      const w = clone(DEFAULT_WEAPON); w.id = uid('weapon'); w.name = 'New weapon'; this.selected = w.id;
+      const w = { ...clone(DEFAULT_WEAPON), ...WEAPON_PRESETS[this.preset], id: uid('weapon') }; this.selected = w.id;
       this.store.change('project', p => { p.weapons.push(w); if (!p.activeWeapon) p.activeWeapon = w.id; });
-    }));
-    for (const w of this.store.project.weapons) {
+    }, 'primary'));
+    this.left.append(node('p', 'muted', 'Presets create a new weapon; existing weapons are never overwritten. Right-click for rename, duplicate and starting-weapon actions.'));
+  }
+  renderWeaponList() {
+    this.weaponList.replaceChildren();
+    const matches = this.store.project.weapons.filter(w => w.name.toLowerCase().includes(this.weaponQuery.toLowerCase()));
+    for (const w of matches) {
       const row = button(`${w.id === this.store.project.activeWeapon ? '● ' : ''}${w.name}`, () => { this.selected = w.id; this.render(); }, w.id === this.selected ? 'selected' : '');
-      onContextMenu(row, () => this.weaponMenu(w));
-      this.left.append(row);
+      row.classList.add('library-item'); onContextMenu(row, () => this.weaponMenu(w)); this.weaponList.append(row);
     }
-    this.left.append(node('p', 'muted', 'Right-click a weapon to rename, duplicate, delete, or set it as the starting weapon.'));
+    if (!matches.length) this.weaponList.append(node('p', 'muted', 'No matching weapons.'));
   }
   weaponMenu(w) {
     const select = () => { this.selected = w.id; this.render(); };
@@ -143,6 +155,9 @@ export class WeaponTool {
     this.renderWeapons(); this.renderToolbar();
     if (!w) { this.disposeModel(); this.right.append(node('p', 'muted', 'No weapons. Create one to begin.')); return; }
     this.syncModel(w);
+    const stats = weaponStats(w);
+    const summary = node('div', 'authoring-summary'); summary.append(node('strong', '', w.name), node('span', 'muted', `${Math.round(stats.rpm)} RPM · ${stats.dps.toFixed(0)} raw DPS · ${stats.sustainedDps.toFixed(0)} sustained DPS`), node('span', 'muted', `${stats.magazineDamage} damage / magazine · ${stats.emptyTime.toFixed(2)}s first-to-last shot`));
+    summary.title = 'Theoretical damage: no misses or part multipliers; sustained includes reload time.'; this.right.append(summary);
     heading(this.right, 'WEAPON / INSPECTOR');
     field(this.right, 'Name', w.name, n => this.edit(v => { v.name = n; }));
     field(this.right, 'Gunshot sound', w.gunshot || '', n => this.edit(v => { v.gunshot = n; }),
@@ -151,7 +166,7 @@ export class WeaponTool {
       ['BALLISTICS', ['magazineSize', 'reserveAmmo', 'damage', 'fireRate', 'range', 'reloadTime']],
       ['RECOIL / SPREAD (RADIANS)', ['recoilKick', 'recoilYaw', 'spreadBase', 'spreadMax', 'bloomGrow', 'bloomDecay', 'airSpread', 'adsSpreadMultiplier']],
       ['ADS', ['adsFov', 'adsSpeed']]
-    ]) { heading(this.right, section[0]); for (const key of section[1]) field(this.right, key, w[key], n => this.edit(v => { v[key] = n; })); }
+    ]) { heading(this.right, section[0]); for (const key of section[1]) field(this.right, FIELD_LABELS[key] || key, w[key], n => this.edit(v => { v[key] = n; }), { ...(['magazineSize', 'reserveAmmo'].includes(key) ? { step: 1, min: key === 'magazineSize' ? 1 : 0 } : {}) }); }
     heading(this.right, this.aim ? 'ADS POSE' : 'HIP POSE');
     this.right.append(node('p', 'muted', 'Drag the gun in the viewport and press Apply — these numbers update from it.'));
     for (const key of [this.aim ? 'adsPosition' : 'hipPosition', this.aim ? 'adsRotation' : 'hipRotation']) vector(this.right, key, w[key], n => this.edit(v => { v[key] = n; }));
@@ -176,6 +191,7 @@ export class WeaponTool {
       { options: [['', 'Procedural fallback'], ...this.store.project.clips.filter(c => c.kind !== 'player').map(c => [c.id, clipLabel(c, w)])] });
     this.right.append(button('Open Animation Editor', () => { closeContextMenu(); this.store.animationContext = 'weapon'; this.store.animationWeapon = w.id; window.__forge?.launch?.('animation'); }));
     jsonPanel(this.right, 'Weapon JSON', w, data => this.edit(v => { if (data.id !== v.id) throw new Error('Keep weapon ID unchanged.'); Object.assign(v, data); }));
+    organizeInspector(this.right, this.sections, { collapsed: ['RECOIL / SPREAD (RADIANS)', 'ADS', 'HIP POSE', 'ADS POSE', 'MUZZLE', 'DAMAGE HITBOXES', 'Arms with this gun', 'ANIMATION EVENTS'] });
   }
   /**
    * Keep the live viewmodel across edits: rebuilding a 45 MB GLB on every
@@ -187,7 +203,6 @@ export class WeaponTool {
       this.model.definition = w;
       this.model.clips = this.store.project.clips;
       this.model.muzzle.position.fromArray(w.muzzle);
-      this.model.restorePose = capturePose(this.model.animationRoot);
       this.attachGizmo();
       return;
     }
@@ -215,6 +230,7 @@ export class WeaponTool {
   disposeModel() { this.model?.dispose(); this.model = null; this.modelSignature = null; this.view.select(null); }
   dispose() {
     this.store.removeEventListener('change', this.changed);
+    this.store.removeEventListener('assets', this.assetsChanged);
     document.removeEventListener('keydown', this.keys);
     closeContextMenu();
     this.model?.dispose(); this.view.dispose();

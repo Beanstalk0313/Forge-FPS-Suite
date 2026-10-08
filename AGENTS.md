@@ -55,7 +55,7 @@ Three r169 TransformControls has broken wrapper disposal; disconnect and dispose
 
 - `toolsuite/desktop/project-files.cjs`: scoped path access, atomic JSON writes, collision-safe imports. Preserve traversal/symlink rejection.
 - `project-template.cjs`: complete fresh project manifest/identity/scene, absent-only nested repair, refuses existing Create destination. Fresh projects initialize Forge documents and `.forge/engine-v` plus a checksum baseline; Repair is not an upgrade.
-- `engine-upgrade.cjs`: app-owned engine version in `toolsuite/engine-version.json`, project version in `.forge/engine-v`. Numeric semver comparison, no downgrades; hash-bound upgrade plans, explicit per-file custom/unknown source approval. Artwork under `src/assets` is excluded. Back up every altered/deleted/created path under `.forge/backup` before writes, preserve game manifest identity/version/custom dependencies, validate authored migrations, transactionally roll back failures. Restore verifies backup checksums and creates a safety backup of current files. Never erase backups automatically or quietly overwrite source conflicts.
+- `engine-upgrade.cjs`: app-owned engine version in `toolsuite/engine-version.json`, project version in `.forge/engine-v`. Numeric semver comparison, no downgrades; hash-bound upgrade plans, explicit custom/unknown source approval. The centered Project engine dialog (also Window → Project engine…) accepts the exact phrase `I UNDERSTAND` to approve the displayed conflict list; it passes those exact paths to the unchanged native per-file contract, never a wildcard. Artwork under `src/assets` is excluded. Back up every altered/deleted/created path under `.forge/backup` before writes, preserve game manifest identity/version/custom dependencies, validate authored migrations, transactionally roll back failures. Restore verifies backup checksums and creates a safety backup of current files. Never erase backups automatically or quietly overwrite source conflicts.
 - `project-documents.cjs`: scoped authoritative document loading, native save and runtime compilation; preserve unknown authored fields. Missing/invalid document references fail explicitly, never fall back to stale caches.
 - `updater.cjs`: packaged stable public GitHub Releases via electron-updater; checks never download, download never installs, normal quit never installs. Restart requires saved work and native approval. No tokens in the shipped app. UPDATE.md covers release metadata/setup and the deferred two-version installed-app acceptance test.
 - `prepare-project.cjs`: dependency copying runs in ordinary Node (Electron's asar-patched fs cannot safely copy its own distribution).
@@ -69,6 +69,10 @@ The renderer receives explicit capabilities via preload, not unrestricted Node/I
 ## Conventions
 
 Reuse existing helpers, use plain technical UI wording, retain dark/mint styling. Files should explain ownership/contracts and non-obvious constraints. No console.log in shipped code. GPU-owning systems implement dispose. No suppression or skipped assertions to hide broken checks.
+
+## Authoring workspace controls
+
+Weapons has a searchable library, non-destructive ballistic starter presets and theoretical RPM/DPS summaries (not measured combat results). Weapons/Animation/UI use `dom.organizeInspector` for remembered disclosure groups; never capture mutable loop variables in disclosure callbacks. `toolsuite/src/authoringTools.js` owns pure editor-only retiming, key navigation, weapon statistics and anchor-aware canvas alignment; no schema additions or runtime dependencies. Clip duration changes scale all key times without rounding, so close keys remain distinct. Animation forwards raycast hit data into bone picking; edits never recapture the live animated weapon pose as rest. Tool hotkeys must ignore open dialogs. UI preview width/scenarios are editor state, not project data. Deleted hitbox cubes must dispose their GPU resources.
 
 ## Verification
 

@@ -13,7 +13,7 @@ export class HomeTool {
     intro.append(node('p', 'eyebrow', 'FORGE FPS SUITE'), node('h1', '', 'Your next world starts here.'), node('p', 'launcher-description', 'Create a project, or pick up where you left off.'));
     const actions = node('div', 'launcher-actions');
     actions.append(button('Open project…', () => window.__forge.chooseProject(), 'primary'), button('New project…', () => window.__forge.newProject()));
-    if (!bridge) actions.append(node('p', 'muted', 'Project folders require Forge desktop. Use the sidebar for browser authoring.'));
+    if (!bridge) actions.append(node('p', 'muted', 'Project folders require Forge desktop. Use Window to open a browser authoring workspace.'));
     intro.append(actions); this.center.append(intro);
     const recent = node('section', 'recent-projects');
     recent.append(node('h2', '', 'Recent projects'));

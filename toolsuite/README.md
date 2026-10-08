@@ -57,7 +57,7 @@ Recovery is isolated by project folder. Disk content loads first; a recovery ban
 
 ## Engine upgrades, restore and editor Settings
 
-Missing, empty or older `.forge/engine-v` recommends an upgrade when opening the project. **Engine…** in the top actions (also reachable from Settings) reviews changed files and backup/restore options. Custom or unknown engine files require individual replacement approval; declining leaves the project alone. Downgrades are blocked. Engine and editor code are updated, but imported artwork is excluded, authored content/IDs and game identity/version are preserved, and required format migrations are validated. Invalid authored data blocks the upgrade instead of being discarded.
+Missing, empty or older `.forge/engine-v` recommends an upgrade when opening the project. **Window → Project engine…** or **Engine…** in the top actions opens a centered review with version cards, expandable file lists and backup/restore options. For custom or untracked engine files, review the listed paths and type the exact phrase **I UNDERSTAND** to approve replacing that list. The acknowledgment is cleared for every new review, and native checks still reject files changed after review. Declining leaves the project alone. Downgrades are blocked. Engine and editor code are updated, but imported artwork is excluded, authored content/IDs and game identity/version are preserved, and required format migrations are validated. Invalid authored data blocks the upgrade instead of being discarded.
 
 Every affected file is backed up under `.forge/backup/<timestamp-id>` before changes, with checksum verification and rollback for failed writes. **Restore…** restores only the files covered by that snapshot; it can revert later edits to migrated authored documents, so it creates a safety backup of the current files first. No backups are pruned automatically. External source customization must be reviewed, not blindly merged.
 
@@ -108,6 +108,8 @@ Hotkeys: G/R/S transform, F frame, Delete, Ctrl+D duplicate, Ctrl+Z/Y undo/redo.
 
 Uses the actual runtime viewmodel for recoil, muzzle and ADS previews. Configure model, audio, damage, fire interval, range, magazine/reserves, reload, spread/bloom, hip/ADS pose and animation events. Muzzle point writes the gizmo position back; Gun pose requires Apply to hip/ADS pose. Free view switches from first-person to orbit. Context actions target the clicked weapon.
 
+The searchable weapon library creates new Rifle/Pistol/SMG/Marksman presets without overwriting existing weapons. The inspector groups identity, ballistics, recoil/spread, poses, hitboxes and animation events into collapsible sections that remember their state during edits. A live summary reports theoretical RPM, raw DPS, reload-inclusive sustained DPS, magazine damage and first-to-last-shot time; these assume no misses and are not combat benchmarks. Stat edits retain the original resting pose rather than capturing the current animation frame.
+
 Runtime controls: WASD, Shift sprint, Space jump, C/Ctrl slide, LMB shoot, RMB ADS, R reload, Escape pause/release pointer.
 
 ## Player models and first-person arms
@@ -125,11 +127,15 @@ Tool switching no longer reloads models: each project caches fetched GLBs per UR
 
 Select named model parts or bones, pose, auto-key, scrub, play, and edit keyframes. New clips seed deletable time-zero position/rotation/scale keys for all uniquely named loaded parts and the root. Return to start at end writes the authored starting pose to the clip end. Clicking a key selects its part, attaches the gizmo and seeks; field/gizmo edits update existing keys even with Auto key off. Idle/walk runtime states repeat even when the clip Loop option is off; event clips remain one-shot unless explicitly looped. Position/rotation/scale and quaternion tracks support linear, step, and smooth interpolation. Imported glTF transform tracks can become editable JSON. `@root` addresses a dedicated animation layer above model fitting. Duplicate node names cannot be uniquely keyed.
 
+Search clips and model parts independently. Clip settings are tucked into a disclosure to leave more space for the hierarchy. Filter the timeline to the selected part, choose ¼×/½×/1×/2× playback, step at 24/30/60 FPS and jump to the previous/next key. Changing Duration scales all key times together without dropping keys or rounding nearby times; the operation is one undo step. Duplicate clips receive independent track IDs. Tool shortcuts do not act behind an open modal.
+
 No IK, retargeting, morph tracks, rig creation, blend graphs, or GLB animation baking.
 
 ## UI
 
 HUD, main/pause/settings menus; text, panels, images, bars, buttons, sliders, crosshair. Anchors, drag layout, eight-handle mouse resize, arrow-key nudging, names, image picker/import, fonts (importable from the element inspector or the screen panel, insertable from CSS chips), scoped CSS with a validated **CSS code** stage tab, style templates, interactive preview and data bindings. The framed design canvas is the exact game screen: off-canvas elements are dimmed and clipped in-game. Shared rendering uses Shadow DOM in editor and game.
+
+The inspector separates identity, layout/alignment, appearance/typography, content/behavior, advanced CSS and actions; fonts, style templates and preview data start collapsed. Search layers without changing the selected element. Align to any canvas edge or center an axis, or **Fit inside canvas** to recover an off-canvas/oversized element; these preserve its anchor and are undoable. Preview scenarios cover normal, low-health/ammo, reloading, downed and ADS states without changing authored gameplay defaults. Preview width survives edits and switching between layout and interactive modes.
 
 See [UI_GUIDE.md](../UI_GUIDE.md) for the full schema and CSS contract. It is written as an agent reference — exact file paths, JSON insertion points, copy-paste examples validated by `tests/ui-guide.test.js`, runtime binding/action tables, editor labels, and a failure-mode table — and it is copied into new and repaired projects.
 

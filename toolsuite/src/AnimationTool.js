@@ -12,9 +12,9 @@ import { createViewmodelPreview, fitViewmodel } from '../../src/authoring/ModelF
 import { playerSettings, mountPlayerRig, PLAYER_PREFIX } from '../../src/authoring/PlayerRig.js';
 import { uid, clone } from '../../src/authoring/Project.js';
 import { createMaterial } from '../../src/systems/Materials.js';
-import { node, button, field, vector, heading, jsonPanel, guard, toast, onContextMenu, closeContextMenu } from './dom.js';
+import { node, button, field, vector, heading, jsonPanel, guard, toast, onContextMenu, closeContextMenu, organizeInspector, searchField } from './dom.js';
+import { retimeClip, adjacentKeyTime } from './authoringTools.js';
 
-const FRAME = 1 / 60; // transport step in seconds
 const MODE_PROP = { translate: 'position', rotate: 'rotation', scale: 'scale' };
 const PROP_LABEL = { position: 'Position', rotation: 'Rotation', scale: 'Scale', quaternion: 'Rotation (quaternion)' };
 const TRACK_STEPS = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
@@ -31,6 +31,7 @@ export class AnimationTool {
     this.clipId = store.project.clips.find(clip => (clip.kind || 'weapon') === this.context)?.id ?? null;
     this.node = '@root'; // selected part: '@root' means the whole model
     this.time = 0; this.playing = false; this.autoKey = true; this.selKey = null;
+    this.sections = new Map(); this.librarySections = new Map(); this.clipQuery = ''; this.partQuery = ''; this.selectedTracksOnly = false; this.playbackSpeed = 1; this.fps = 60;
     this.held = new Map(); // un-recorded pose edits survive until the playhead moves
     this.modelUrl = this.context === 'player' ? playerSettings(store.project).modelUrl : store.project.weapons.find(w => w.id === this.weaponId)?.modelUrl || '';
     this.nodes = new Set(['@root']); this.counts = new Map(); this.tree = []; this.imported = [];
@@ -43,7 +44,7 @@ export class AnimationTool {
     this.center.append(this.toolbar, this.viewport, this.timeline,
       node('div', 'stage-hint', 'Click a part to select · G/R/S gizmo mode · F frame · Space play/pause · K key transform · drag timeline to scrub'));
     this.view = new Viewport(this.viewport, {
-      pick: object => this.pickNode(object),
+      pick: (object, hit) => this.pickNode(object, hit),
       select: obj => this.selectNode(!obj || obj === this.animRoot ? '@root' : obj.name || '@root'),
       transform: obj => this.gizmoDone(obj)
     });
@@ -54,21 +55,22 @@ export class AnimationTool {
     this.tick = dt => {
       const clip = this.clip();
       if (!clip || !this.animRoot || !this.playing) return;
-      this.time += dt;
+      this.time += dt * this.playbackSpeed;
       if (this.time >= clip.duration) { if (clip.loop) this.time %= clip.duration; else { this.time = clip.duration; this.playing = false; } }
       this.refreshPose(); this.updateTransport();
     };
     this.view.engine.onUpdate(this.tick);
     this.changed = () => this.render(); store.addEventListener('change', this.changed);
+    this.assetsChanged = () => this.render(); store.addEventListener('assets', this.assetsChanged);
     this.keys = event => {
-      if (event.ctrlKey || event.metaKey || event.altKey || store.busy || document.querySelector('.project-scrim:not([hidden])') || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || store.busy || document.querySelector('.project-scrim:not([hidden]), dialog[open]') || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
       const mode = { g: 'translate', r: 'rotate', s: 'scale' }[event.key.toLowerCase()];
       if (mode) { this.view.mode(mode); return; }
       if (event.key.toLowerCase() === 'f') { this.view.frame(this.object() || this.view.root); return; }
       if (event.key.toLowerCase() === 'k') { guard(() => this.keyNode(this.node, ['position', 'rotation', 'scale'])); return; }
       if (event.key === ' ') { event.preventDefault(); this.togglePlay(); return; }
-      if (event.key === 'ArrowLeft') { event.preventDefault(); this.setTime(this.time - FRAME); }
-      if (event.key === 'ArrowRight') { event.preventDefault(); this.setTime(this.time + FRAME); }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); this.setTime(this.time - 1 / this.fps); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); this.setTime(this.time + 1 / this.fps); }
     };
     document.addEventListener('keydown', this.keys);
     this.ro = new ResizeObserver(() => this.updateTransport()); this.ro.observe(this.timeline);
@@ -212,15 +214,25 @@ export class AnimationTool {
     else this.pendingDefaults = clip.id;
     this.store.change('project', p => p.clips.push(clip));
   }
+  duplicateClip(clip) {
+    const copy = clone(clip); copy.id = uid('clip'); copy.name += ' copy';
+    copy.tracks = copy.tracks.map(track => ({ ...track, id: uid('track') }));
+    this.clipId = copy.id; this.selKey = null; this.playing = false; this.held.clear();
+    this.store.change('project', project => project.clips.push(copy));
+  }
+  retime(duration) {
+    const clip = this.clip(); if (!clip) return;
+    const ratio = duration / clip.duration, time = this.time, selection = this.selKey;
+    this.edit(value => retimeClip(value, duration));
+    this.time = Math.min(duration, time * ratio);
+    this.selKey = selection ? { ...selection, time: selection.time * ratio } : null;
+    this.render();
+  }
   clipMenu(clip) {
     return [
       { label: 'Open clip', action: () => this.selectClip(clip.id) },
       { label: 'Rename…', action: () => { const name = prompt('Clip name', clip.name); if (name?.trim()) this.store.change('project', p => { p.clips.find(c => c.id === clip.id).name = name.trim(); }); } },
-      { label: 'Duplicate', action: () => {
-        const copy = clone(clip); copy.id = uid('clip'); copy.name += ' copy';
-        copy.tracks = copy.tracks.map(t => ({ ...t, id: uid('track') }));
-        this.store.change('project', p => p.clips.push(copy)); this.clipId = copy.id; this.render();
-      } },
+      { label: 'Duplicate', action: () => this.duplicateClip(clip) },
       { label: 'Use this clip model', action: () => this.selectClip(clip.id) },
       { label: 'Delete', danger: true, action: () => {
         this.store.change('project', p => {
@@ -362,28 +374,24 @@ export class AnimationTool {
     const clip = this.clip();
     this.time = clip ? Math.min(this.time, clip.duration) : 0;
     this.left.innerHTML = ''; this.toolbar.innerHTML = ''; this.timeline.innerHTML = ''; this.right.innerHTML = '';
-    this.renderClips(clip); this.renderToolbar(); this.renderTimeline(clip);
+    this.renderClips(clip); organizeInspector(this.left, this.librarySections, { collapsed: ['CLIP SETTINGS', 'MODEL ANIMATIONS'] }); this.renderToolbar(); this.renderTimeline(clip);
     this.refreshPose(); this.updateTransport(); this.renderInspector(clip);
+    organizeInspector(this.right, this.sections);
   }
   renderClips(clip) {
     heading(this.left, 'CLIPS');
     this.left.append(button('+ New clip', () => this.addClip()));
-    for (const c of this.store.project.clips.filter(item => (item.kind || 'weapon') === this.context)) {
-      const row = button(c.name, () => this.selectClip(c.id), c.id === this.clipId ? 'selected' : '');
-      onContextMenu(row, () => this.clipMenu(c));
-      this.left.append(row);
-    }
+    searchField(this.left, 'Search clips', this.clipQuery, value => { this.clipQuery = value; this.renderClipList(); });
+    this.clipList = node('div', 'clip-library'); this.left.append(this.clipList); this.renderClipList();
     if (clip) {
+      heading(this.left, 'CLIP SETTINGS');
       field(this.left, 'Clip name', clip.name, n => this.edit(c => { c.name = n; }));
-      field(this.left, 'Duration (seconds)', clip.duration, n => this.edit(c => { c.duration = Math.max(0.01, n); }), { min: 0.01 });
+      field(this.left, 'Duration (seconds)', clip.duration, n => this.retime(n), { min: 0.01, max: 3600 });
+      this.left.append(node('p', 'muted', 'Changing duration scales all key times together, preserving the full motion. Undo restores the original timing.'));
       field(this.left, 'Loop', clip.loop, n => this.edit(c => { c.loop = n; }));
       this.left.append(
         button('Use current preview model', () => this.edit(c => { c.modelUrl = this.modelUrl; c.kind = this.context; if (this.context === 'weapon') c.weaponId = this.weaponId; })),
-        button('Duplicate clip', () => {
-          const copy = clone(clip); copy.id = uid('clip'); copy.name += ' copy';
-          this.clipId = copy.id; this.selKey = null; this.held.clear();
-          this.store.change('project', p => p.clips.push(copy));
-        }),
+        button('Duplicate clip', () => this.duplicateClip(clip)),
         button('Delete clip', () => {
           this.playing = false; this.held.clear();
           this.store.change('project', p => {
@@ -399,7 +407,21 @@ export class AnimationTool {
       for (const source of this.imported) this.left.append(button(`Import "${source.name}"`, () => guard(() => this.importClip(source))));
     }
     heading(this.left, 'MODEL HIERARCHY');
-    const list = node('div', 'hierarchy'); this.left.append(list);
+    searchField(this.left, 'Search model parts', this.partQuery, value => { this.partQuery = value; this.renderPartList(); });
+    this.partList = node('div', 'hierarchy'); this.left.append(this.partList); this.renderPartList();
+    this.left.append(node('p', 'muted', 'Right-click a clip for actions, or a part to clear its keyframes.'));
+  }
+  renderClipList() {
+    this.clipList.replaceChildren();
+    const matches = this.store.project.clips.filter(clip => (clip.kind || 'weapon') === this.context && clip.name.toLowerCase().includes(this.clipQuery.toLowerCase()));
+    for (const clip of matches) {
+      const row = button(clip.name, () => this.selectClip(clip.id), clip.id === this.clipId ? 'selected library-item' : 'library-item');
+      row.title = `${clip.duration}s · ${clip.tracks.length} tracks`; onContextMenu(row, () => this.clipMenu(clip)); this.clipList.append(row);
+    }
+    if (!matches.length) this.clipList.append(node('p', 'muted', 'No matching clips in this context.'));
+  }
+  renderPartList() {
+    const list = this.partList, clip = this.clip(); list.replaceChildren();
     const entry = (label, depth, name) => {
       const b = button(label, () => this.selectNode(name), name === this.node ? 'selected' : '');
       b.style.paddingLeft = `${10 + depth * 14}px`;
@@ -412,8 +434,7 @@ export class AnimationTool {
     };
     entry('Whole model (@root)', 0, '@root');
     const animated = new Set(clip ? clip.tracks.map(t => t.target) : []);
-    for (const item of this.tree) entry(`${animated.has(item.name) ? '● ' : ''}${item.bone ? 'Bone · ' : ''}${item.name}`, item.depth + 1, item.name);
-    this.left.append(node('p', 'muted', 'Right-click a clip for actions, or a part to clear its keyframes.'));
+    for (const item of this.tree.filter(part => part.name.toLowerCase().includes(this.partQuery.toLowerCase()))) entry(`${animated.has(item.name) ? '● ' : ''}${item.bone ? 'Bone · ' : ''}${item.name}`, this.partQuery ? 1 : item.depth + 1, item.name);
     if (!this.tree.length) list.append(node('p', 'muted', 'Load a GLB preview model to pick individual parts.'));
   }
   renderToolbar() {
@@ -440,7 +461,7 @@ export class AnimationTool {
   renderTimeline(clip) {
     const transport = node('div', 'tl-transport');
     this.playBtn = button('', () => this.togglePlay()); this.playBtn.title = 'Play/pause (Space)';
-    transport.append(button('⏮ Start', () => this.setTime(0)), button('◀ Step', () => this.setTime(this.time - FRAME)), this.playBtn, button('Step ▶', () => this.setTime(this.time + FRAME)));
+    transport.append(button('⏮ Start', () => this.setTime(0)), button('◀ Step', () => this.setTime(this.time - 1 / this.fps)), this.playBtn, button('Step ▶', () => this.setTime(this.time + 1 / this.fps)));
     this.scrubber = node('input'); this.scrubber.type = 'range'; this.scrubber.min = 0; this.scrubber.step = 0.001;
     this.scrubber.setAttribute('aria-label', 'Animation playhead');
     this.scrubber.oninput = () => this.setTime(Number(this.scrubber.value));
@@ -456,8 +477,13 @@ export class AnimationTool {
     });
     this.autoBtn.title = 'Record transforms as keyframes at the playhead';
     transport.append(this.autoBtn, button('◆ Key transform · K', () => guard(() => this.keyNode(this.node, ['position', 'rotation', 'scale']))));
+    const controls = node('div', 'tl-transport tl-options');
+    field(controls, 'Playback speed', String(this.playbackSpeed), value => { this.playbackSpeed = Number(value); }, { options: [['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×']] });
+    field(controls, 'Step frame rate', String(this.fps), value => { this.fps = Number(value); }, { options: ['24', '30', '60'] });
+    if (clip) controls.append(button('Previous key', () => this.setTime(adjacentKeyTime(this.clip(), this.time, -1))), button('Next key', () => this.setTime(adjacentKeyTime(this.clip(), this.time, 1))));
+    field(controls, 'Selected part only', this.selectedTracksOnly, value => { this.selectedTracksOnly = value; this.render(); });
     if (clip) transport.append(button('Return to start at end', () => this.edit(c => returnToStart(c))));
-    this.timeline.append(transport);
+    this.timeline.append(transport, controls);
     if (!clip) { this.timeline.append(node('p', 'muted', 'Create or select a clip to start keyframing.')); this.playhead = null; return; }
     const scroll = node('div', 'tl-scroll');
     const body = node('div', 'tl-body');
@@ -489,7 +515,7 @@ export class AnimationTool {
       el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) at(e); });
     };
     scrubZone(ruler);
-    const ordered = this.orderedTracks(clip);
+    const ordered = this.orderedTracks(clip).filter(track => !this.selectedTracksOnly || track.target === this.node);
     for (const track of ordered) {
       const label = node('div', 'tl-rowlabel', `${PROP_LABEL[track.property] || track.property} : ${track.target}`);
       label.title = `${track.target}.${track.property}`;
@@ -565,6 +591,7 @@ export class AnimationTool {
   }
   dispose() {
     this.store.removeEventListener('change', this.changed);
+    this.store.removeEventListener('assets', this.assetsChanged);
     document.removeEventListener('keydown', this.keys);
     closeContextMenu();
     this.ro?.disconnect();
