@@ -9,6 +9,7 @@ import { Viewport } from './Viewport.js';
 import { playerSettings, mountPlayerRig, rigInventory, PLAYER_EVENTS } from '../../src/authoring/PlayerRig.js';
 import { HITBOX_PARTS, PART_LABEL, PART_COLORS, defaultHitbox, validateHitbox } from '../../src/authoring/Hitboxes.js';
 import { node, button, field, vector, heading, toast } from './dom.js';
+import { disposeObject3D } from '../../src/systems/Materials.js';
 
 const eulerOf = obj => { const e = new THREE.Euler().setFromQuaternion(obj.quaternion, 'YXZ'); return [e.x, e.y, e.z]; };
 /**
@@ -182,7 +183,7 @@ export class PlayerTool {
     const hitboxes = player.hitboxes || [];
     const wanted = new Set(hitboxes.map(hitbox => hitbox.id));
     for (const [id, cube] of [...this.hitboxCubes]) {
-      if (!wanted.has(id)) { cube.removeFromParent(); this.hitboxCubes.delete(id); }
+      if (!wanted.has(id)) { cube.removeFromParent(); disposeObject3D(cube); this.hitboxCubes.delete(id); }
     }
     const root = this.rigRoot;
     if (!root) return;
@@ -216,7 +217,6 @@ export class PlayerTool {
   load(player) {
     this.view.clear(); this.inventory = { meshes: [], bones: [] };
     this.meshByName = new Map(); this.rigRoot = null; this.names = new Map();
-    for (const cube of this.hitboxCubes.values()) cube.removeFromParent();
     this.hitboxCubes = new Map(); this.selectedHitbox = null;
     if (!player.modelUrl) return;
     const signature = this.signature;

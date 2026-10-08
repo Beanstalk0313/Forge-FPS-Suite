@@ -10,6 +10,25 @@ export function toast(text, error = false) {
   el.textContent = text; el.classList.toggle('error', error);
 }
 export function heading(parent, text) { parent.append(node('h3', '', text)); }
+/** Remember disclosure state per workspace, without storing editor layout in authored data. */
+export function organizeInspector(parent, states, { collapsed = [] } = {}) {
+  const children = [...parent.children]; let section = null, content = parent;
+  for (const child of children) {
+    if (child.tagName === 'H3') {
+      const key = child.textContent;
+      section = node('details', 'inspector-section'); section.open = states.get(key) ?? !collapsed.includes(key);
+      const summary = node('summary'); summary.append(child); section.append(summary);
+      content = node('div', 'inspector-section-body'); section.append(content); parent.append(section);
+      const disclosure = section;
+      disclosure.addEventListener('toggle', () => { if (disclosure.isConnected) states.set(key, disclosure.open); });
+    } else if (section) content.append(child);
+  }
+}
+/** Search stays mounted while its result list updates, preserving focus/caret. */
+export function searchField(parent, label, value, changed) {
+  const input = node('input', 'panel-search'); input.type = 'search'; input.placeholder = label; input.setAttribute('aria-label', label); input.value = value;
+  input.oninput = () => changed(input.value); parent.append(input); return input;
+}
 export function field(parent, label, value, changed, { type, options, min, max, step = 'any', multiline = false } = {}) {
   const wrap = node('label', 'field'); wrap.append(node('span', '', label));
   const input = node(options ? 'select' : multiline ? 'textarea' : 'input');

@@ -13,7 +13,7 @@ Nothing has been packaged, uploaded or published as part of this implementation.
 - **Each project's engine**: `.forge/engine-v`, plain `major.minor.patch` text. Missing, empty or invalid markers recommend an upgrade. A newer engine is never silently downgraded.
 - **Game version**: the game's manifest/Game properties. This is independent and is preserved by engine upgrades.
 
-Updating Forge never silently updates project engines. On opening an old project, Forge recommends a separate reviewed upgrade, backs up changed files to `.forge/backup/<timestamp-id>`, validates the migrated documents and supports restore. Unknown or locally modified engine files require explicit per-file approval. Models/audio/images are excluded from engine replacement.
+Updating Forge never silently updates project engines. On opening an old project, Forge recommends a separate reviewed upgrade, backs up changed files to `.forge/backup/<timestamp-id>`, validates the migrated documents and supports restore. Unknown or locally modified engine files are listed for review. Typing the exact phrase **I UNDERSTAND** approves replacing that displayed list for the current review; the native upgrade still requires each listed path and rejects changed plans. The centered review is also available through **Window → Project engine…**. Models/audio/images are excluded from engine replacement.
 
 ## 1. Repository and permissions
 

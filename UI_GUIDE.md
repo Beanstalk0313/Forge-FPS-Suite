@@ -140,6 +140,8 @@ If the runtime needs a menu screen that does not exist, it renders a plain "Clic
 | `bottom-center` | signed horizontal offset from centre | bottom inset |
 | `bottom-right` | right inset | bottom inset |
 
+**Editor layout tools (no schema change):** the selected element's **Layout / alignment** group has Left / Center X / Right / Top / Center Y / Bottom buttons, plus **Fit inside canvas**. These move the actual design-space box and convert the position back to the existing anchor offsets; alignment never renames IDs or changes anchors. Fit also limits an oversized box to the design resolution. Every operation is one undoable project edit. **Search layers** filters the list only. The **Preview scenario** picker simulates Normal, Low health/ammo, Reloading, Downed and Aiming/ADS without saving those values into the project. The Viewport picker remains selected across inspector edits and interactive/layout switches.
+
 Centered axes are placed with a `translate(-50%)` on that axis. `anchor: "center"`, `x: 0`, `y: -120` puts the element **centre** 120 design pixels above the design centre. Right/bottom anchors convert `x`/`y` into insets, which is why dragging an element right decreases its `x`. Do not override the anchor transform in CSS unless you intend to replace the layout.
 
 ### 4.5 Element types
@@ -496,6 +498,7 @@ npm run dev     # editor at /toolsuite/index.html, game at /
 
 Editor pass
 
+- Run **File → Check project…** (or Ctrl+K → *Check project*): every UI image and font the authored screens name is verified against the real project assets, and each problem row can jump straight to the screen that owns it. Play runs the same check and reports errors before booting.
 - Open the **UI** tab; walk every screen. Common plus mode HUD must compose exactly once (use **Preview mode**).
 - Confirm **Switch to interactive preview**: Settings → Back, both sliders, and pointer-lock-free navigation.
 - Flip every **LIVE PREVIEW DATA** field and confirm nothing overflows or disappears unexpectedly.

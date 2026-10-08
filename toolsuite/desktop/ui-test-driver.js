@@ -10,11 +10,12 @@ export default async function driveUI(root) {
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
   const check = (name, ok, detail = '') => checks.push({ name, ok: !!ok, detail: String(detail).slice(0, 200) });
   const find = (selector, text) => [...document.querySelectorAll(selector)].find(el => !text || el.textContent.includes(text));
-  const click = async (el, label) => { if (!el) { check(label, false, 'button not found'); return null; } el.click(); await wait(80); return el; };
+  const reveal = el => { for (let parent = el?.parentElement; parent; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true; };
+  const click = async (el, label) => { if (!el) { check(label, false, 'button not found'); return null; } reveal(el); el.click(); await wait(80); return el; };
   const menuLabels = () => [...document.querySelectorAll('.context-menu button')].map(b => b.textContent);
   const rightClick = async (el, label) => {
     if (!el) { check(label || 'right-click target', false, 'row not found'); return false; }
-    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 60, clientY: 60 })); await wait(60); return true;
+    reveal(el); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 60, clientY: 60 })); await wait(60); return true;
   };
   const escape = async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(60); };
   /** Wait for a condition instead of sleeping a fixed time: the shell renders on its own schedule. */
@@ -23,7 +24,7 @@ export default async function driveUI(root) {
     while (Date.now() < deadline) { if (test()) return true; await wait(50); }
     return false;
   };
-  const setValue = async (el, value) => { el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); await wait(80); };
+  const setValue = async (el, value) => { reveal(el); el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); await wait(80); };
   /* ---- file-browser dock helpers ---- */
   const treeRow = label => [...document.querySelectorAll('.folder-tree .tree-row')].find(b => b.textContent === label);
   const openTreeFolder = async label => { const row = treeRow(label); await click(row, `tree folder ${label}`); return !!row; };
@@ -53,8 +54,14 @@ export default async function driveUI(root) {
   check('opening an old project automatically prompts for engine review', !!document.querySelector('.engine-dialog'));
   check('engine review explains preservation and backup location', document.querySelector('.engine-dialog').textContent.includes('.forge/backup') && document.querySelector('.engine-dialog').textContent.includes('animations'));
   const upgradeButton = find('.engine-dialog button', 'Back up and upgrade');
-  check('custom engine replacement needs approval', upgradeButton.disabled && !!document.querySelector('.conflict-row input'));
-  for (const checkbox of document.querySelectorAll('.conflict-row input')) await setChecked(checkbox, true);
+  const acknowledgment = document.querySelector('[aria-label="Engine replacement acknowledgment"]');
+  const engineRect = document.querySelector('.engine-dialog').getBoundingClientRect();
+  check('engine review is centered in the editor window', Math.abs(engineRect.left + engineRect.width / 2 - innerWidth / 2) < 2 && Math.abs(engineRect.top + engineRect.height / 2 - innerHeight / 2) < 2);
+  check('custom engine replacement needs explicit typed approval', upgradeButton.disabled && !!acknowledgment && !document.querySelector('.conflict-row input'));
+  acknowledgment.value = 'i understand'; acknowledgment.dispatchEvent(new Event('input', { bubbles: true }));
+  check('an incorrect acknowledgment cannot enable upgrade', upgradeButton.disabled);
+  acknowledgment.value = 'I UNDERSTAND'; acknowledgment.dispatchEvent(new Event('input', { bubbles: true }));
+  check('the exact acknowledgment enables replacement of the reviewed conflict list', !upgradeButton.disabled);
   await click(upgradeButton, 'Upgrade engine');
   await until(() => !store.busy && !document.querySelector('.engine-dialog'), 20000);
   check('upgrade updates marker and resets editor documents safely', store.engine.current === store.engine.newest && !store.engine.needsUpgrade);
@@ -67,10 +74,18 @@ export default async function driveUI(root) {
   check('restore returns old engine and keeps a safety backup', store.engine.needsUpgrade && (await window.forgeDesktop.engineBackups()).length === 2);
   await click(find('.top-actions button', 'Engine…'), 'Upgrade restored project');
   await until(() => !!document.querySelector('.engine-dialog'), 20000);
-  for (const checkbox of document.querySelectorAll('.conflict-row input')) await setChecked(checkbox, true);
+  const secondAcknowledgment = document.querySelector('[aria-label="Engine replacement acknowledgment"]');
+  check('a fresh review requires a fresh acknowledgment', upgradeButton !== find('.engine-dialog button', 'Back up and upgrade') && !!secondAcknowledgment && secondAcknowledgment.value === '');
+  secondAcknowledgment.value = 'I UNDERSTAND'; secondAcknowledgment.dispatchEvent(new Event('input', { bubbles: true }));
   await click(find('.engine-dialog button', 'Back up and upgrade'), 'Upgrade again');
   await until(() => !store.busy && !document.querySelector('.engine-dialog'), 20000);
 
+  await openMenu('Window');
+  check('Project engine is accessible from the Window menu', menuLabels().includes('Project engine…'));
+  await click(find('.context-menu button', 'Project engine…'), 'Window → Project engine');
+  await until(() => !!document.querySelector('.engine-dialog'));
+  check('Window opens a fresh engine review', !!document.querySelector('.engine-dialog'));
+  await click(find('.engine-dialog button', 'Later'), 'close engine review');
   await window.__forge.showProjects();
   const drawer = document.querySelector('.project-scrim');
   const opened = await until(() => drawer && !drawer.hidden && !!drawer.querySelector('.project-dialog'));
@@ -92,7 +107,7 @@ export default async function driveUI(root) {
   const weaponTool = tool();
   const leftPanel = document.querySelector('.workspace aside.panel');
   check('weapon list is headed WEAPONS', /WEAPONS/.test(leftPanel.textContent), leftPanel.querySelector('h3')?.textContent);
-  const weaponRows = [...leftPanel.querySelectorAll('button')].filter(b => store.project.weapons.some(w => b.textContent.includes(w.name)));
+  const weaponRows = [...leftPanel.querySelectorAll('.weapon-library button')].filter(b => store.project.weapons.some(w => b.textContent.includes(w.name)));
   check('weapon rows match the project', weaponRows.length === store.project.weapons.length, `${weaponRows.length} rows`);
   await rightClick(weaponRows[0], 'weapon context menu');
   check('weapon context menu opens', menuLabels().length > 0, menuLabels().join(' / '));
@@ -104,6 +119,26 @@ export default async function driveUI(root) {
   store.change('project', p => { p.weapons[0].magazineSize += 1; });
   await wait(120);
   check('edits reuse the live viewmodel (no GLB reload)', !!modelBefore && weaponTool.model === modelBefore);
+  check('weapon inspector separates sections and displays derived combat stats', document.querySelectorAll('.inspector-section').length >= 8 && /RPM/.test(document.querySelector('.authoring-summary')?.textContent || ''));
+  await weaponTool.model.ready;
+  const restorePose = weaponTool.model.restorePose;
+  const weaponSearch = document.querySelector('[aria-label="Search weapons"]');
+  weaponSearch.value = 'no-matching-weapon'; weaponSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  check('weapon search filters the library without changing the selected weapon', !document.querySelector('.weapon-library button') && weaponTool.model === modelBefore);
+  weaponSearch.value = ''; weaponSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  const priorWeapons = store.project.weapons.length, originalWeapon = weaponTool.selected;
+  await setValue(document.querySelector('[aria-label="Starter preset"]'), 'pistol');
+  await click(find('.panel button', '+ New weapon'), 'create a preset pistol');
+  check('a pistol preset creates a separate valid weapon', store.project.weapons.length === priorWeapons + 1 && weaponTool.weapon().name === 'Pistol' && weaponTool.weapon().magazineSize === 12);
+  store.undo('project'); weaponTool.selected = originalWeapon; weaponTool.render();
+  check('preset creation is undoable without altering the original weapon', store.project.weapons.length === priorWeapons && weaponTool.weapon().id === originalWeapon);
+  const folded = [...document.querySelectorAll('.inspector-section')].find(section => section.querySelector('summary').textContent.includes('RECOIL'));
+  folded.open = true; await wait(50); store.change('project', project => { project.weapons[0].damage += 1; }); await wait(80);
+  check('weapon disclosure state survives edits', [...document.querySelectorAll('.inspector-section')].find(section => section.querySelector('summary').textContent.includes('RECOIL'))?.open);
+  await weaponTool.model.ready;
+  const currentRestore = weaponTool.model.restorePose;
+  store.change('project', project => { project.weapons[0].damage -= 1; });
+  check('stat edits do not recapture an animated pose as the resting pose', weaponTool.model.restorePose === currentRestore && typeof restorePose === 'function');
 
   await click(find('.viewport-toolbar button', 'Gun pose'), 'gun pose');
   check('pose mode offers Apply', !!find('.viewport-toolbar button', 'Apply to hip pose'));
@@ -130,6 +165,26 @@ export default async function driveUI(root) {
   check('layer row shows type and name', new RegExp(`image · ${imageElement.name}`).test(uiLeft.textContent), uiLeft.textContent.slice(0, 120));
   check('image inspector offers an asset picker', uiRight.textContent.includes('Image asset') && !!uiRight.querySelector('select'));
   check('image inspector offers upload and clear', uiRight.textContent.includes('Upload image…') && uiRight.textContent.includes('Clear image'));
+  check('UI inspector groups layout, appearance and behavior', ['LAYOUT / ALIGNMENT', 'APPEARANCE / TYPOGRAPHY', 'CONTENT / BEHAVIOR'].every(label => [...uiRight.querySelectorAll('.inspector-section summary')].some(summary => summary.textContent === label)));
+  const layerSearch = document.querySelector('[aria-label="Search layers"]');
+  layerSearch.value = 'no-matching-layer'; layerSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  check('layer search filters authored rows without deleting content', ![...document.querySelectorAll('.layers button')].some(button => button.textContent.startsWith('image · ')) && uiTool.element().id === imageElement.id);
+  layerSearch.value = ''; layerSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  await click(find('.ui-align-grid button', 'Center X'), 'center selected element horizontally');
+  check('canvas alignment centers the actual element box', uiTool.element().x === (store.project.ui.width - uiTool.element().width) / 2);
+  store.undo('project');
+  check('canvas alignment is one undoable edit', uiTool.element().x === 60);
+  uiTool.edit(screen => { const el = screen.elements.find(element => element.id === uiTool.elementId); el.x = -100; el.y = -200; });
+  await click(find('.inspector button', 'Fit inside canvas'), 'fit selected element inside canvas');
+  check('fit inside canvas brings an offscreen element back into view', uiTool.element().x === 0 && uiTool.element().y === 0);
+  store.undo('project'); store.undo('project');
+  await setValue(document.querySelector('[aria-label="Preview scenario"]'), 'downed');
+  check('preview scenarios affect mock state, not project defaults', uiTool.state.health === 0 && uiTool.state.downed === true && store.project.settings.volume !== 0);
+  await setValue(document.querySelector('[aria-label="Preview scenario"]'), 'normal');
+  await setValue(document.querySelector('[aria-label="Viewport"]'), '640');
+  uiTool.render();
+  check('preview viewport choice survives inspector edits', document.querySelector('[aria-label="Viewport"]').value === '640' && uiTool.preview.style.maxWidth === '640px');
+  await setValue(document.querySelector('[aria-label="Viewport"]'), 'fit');
 
   const reticle = store.assets.find(a => a.name === 'reticle.png');
   check('project image is listed for the picker', !!reticle, JSON.stringify(uiTool.images().map(i => i.path)));
@@ -475,6 +530,36 @@ export default async function driveUI(root) {
   animation.selectKey(selectedEndTrack, selectedEndTrack.keys.at(-1));
   await setValue(document.querySelector('.inspector input[aria-label="X"]'), '11');
   check('selected-key inspector edits update the existing key', animation.clip().tracks.find(t => t.id === positionTrack.id).keys.at(-1).value[0] === 11 && animation.clip().tracks.find(t => t.id === positionTrack.id).keys.length === 2);
+  const oldDuration = animation.clip().duration, oldTimes = animation.clip().tracks.find(track => track.id === positionTrack.id).keys.map(key => key.time);
+  await setValue(document.querySelector('[aria-label="Duration (seconds)"]'), String(oldDuration * 2));
+  check('duration changes retime all keys without truncating the clip', animation.clip().duration === oldDuration * 2 && animation.clip().tracks.find(track => track.id === positionTrack.id).keys.every((key, i) => key.time === oldTimes[i] * 2));
+  store.undo('project');
+  check('retiming restores original keys with a single undo', animation.clip().duration === oldDuration && animation.clip().tracks.find(track => track.id === positionTrack.id).keys.every((key, i) => key.time === oldTimes[i]));
+  await setValue(document.querySelector('[aria-label="Playback speed"]'), '0.5');
+  await setValue(document.querySelector('[aria-label="Step frame rate"]'), '30');
+  animation.setTime(0); await click(find('.tl-transport button', 'Step ▶'), 'step at selected frame rate');
+  check('animation transport uses the selected frame rate and speed', Math.abs(animation.time - 1 / 30) < 1e-6 && animation.playbackSpeed === 0.5);
+  animation.setTime(0); animation.playing = true; animation.tick(0.2); animation.playing = false;
+  check('half-speed playback advances actual animation time at half rate', Math.abs(animation.time - 0.1) < 1e-6);
+  await click(find('.tl-options button', 'Next key'), 'jump to next key');
+  check('next-key navigation seeks the nearest key across tracks', Math.abs(animation.time - 0.5) < 1e-6);
+  await click(find('.tl-options button', 'Previous key'), 'jump to previous key');
+  check('previous-key navigation seeks back to a strictly earlier key', animation.time === 0);
+  await setChecked(document.querySelector('[aria-label="Selected part only"]'), true);
+  check('timeline can focus on the selected part without deleting tracks', [...document.querySelectorAll('.tl-rowlabel')].every(label => label.textContent.includes('@root')) && animation.clip().tracks.length > 3);
+  await setChecked(document.querySelector('[aria-label="Selected part only"]'), false);
+  const partSearch = document.querySelector('[aria-label="Search model parts"]');
+  partSearch.value = 'no-matching-part'; partSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  check('model hierarchy search preserves the root handle', document.querySelectorAll('.hierarchy button').length === 1);
+  partSearch.value = ''; partSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  const clipSearch = document.querySelector('[aria-label="Search clips"]');
+  clipSearch.value = 'no-matching-clip'; clipSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  check('clip search filters the library without changing the open clip', !document.querySelector('.clip-library button') && !!animation.clip());
+  clipSearch.value = ''; clipSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  const originalClip = animation.clip(), trackIds = new Set(originalClip.tracks.map(track => track.id));
+  await click(find('.panel button', 'Duplicate clip'), 'duplicate authored clip');
+  check('duplicated clips get independent track IDs', animation.clip().id !== originalClip.id && animation.clip().tracks.every(track => !trackIds.has(track.id)));
+  store.undo('project'); animation.selectClip(originalClip.id);
   launch('level'); await wait(100);
 
   /* ---- game properties ---- */
@@ -643,6 +728,12 @@ export default async function driveUI(root) {
   await click(find('.workspace button', '+ Legs'), 'add legs hitbox');
   const headBox = store.project.player.hitboxes.find(box => box.part === 'head');
   check('hitboxes are authored as cubes on the player rig', store.project.player.hitboxes.length === 2 && !!headBox && hitboxPlayer.hitboxCubes.has(headBox.id));
+  const legsBox = store.project.player.hitboxes.find(box => box.part === 'legs'), legsCube = hitboxPlayer.hitboxCubes.get(legsBox.id);
+  let disposedGeometry = false, disposedMaterial = false;
+  legsCube.geometry.addEventListener('dispose', () => { disposedGeometry = true; }); legsCube.material.addEventListener('dispose', () => { disposedMaterial = true; });
+  hitboxPlayer.edit(player => { player.hitboxes = player.hitboxes.filter(box => box.id !== legsBox.id); });
+  check('removing an authored hitbox releases its GPU geometry and material', disposedGeometry && disposedMaterial && !hitboxPlayer.hitboxCubes.has(legsBox.id));
+  store.undo('project');
   hitboxPlayer.selectedHitbox = headBox.id; hitboxPlayer.attachHitboxGizmo();
   const headCube = hitboxPlayer.hitboxCubes.get(headBox.id);
   headCube.position.set(0, 1.7, 0);
@@ -666,6 +757,14 @@ export default async function driveUI(root) {
   const rest = mesh.applyBoneTransform(1, vertex.clone());
   check('scrubbing finger keys visibly deforms the skinned arm', posed.distanceTo(rest) > 0.1, posed.distanceTo(rest));
   check('hidden body mesh keeps its shoulder/hand bone chain alive', armAnimation.object('player:BodyMesh').visible === false && armAnimation.object('player:Hand').visible === true);
+  const finger = armAnimation.object('player:Finger'), pickPoint = finger.getWorldPosition(new finger.position.constructor());
+  const pickedBone = armAnimation.view.pointerUp && armAnimation.pickNode(mesh, { point: pickPoint });
+  check('clicking a skinned part resolves to its nearest unique bone', pickedBone === finger);
+  armAnimation.view.mode('rotate');
+  await window.__forge.settings.open();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true }));
+  check('animation hotkeys do not edit the viewport behind a modal', armAnimation.view.gizmo.mode === 'rotate');
+  await click(find('.settings-dialog button', 'Close'), 'close modal hotkey check');
   const importedFinger = armAnimation.imported.find(clip => clip.name === 'FingerCurl');
   armAnimation.importClip(importedFinger);
   check('embedded GLB skeletal animation converts to namespaced editable keys', armAnimation.clip().tracks.some(track => track.target === 'player:Finger' && track.property === 'quaternion'));
@@ -675,6 +774,77 @@ export default async function driveUI(root) {
   await armsPreview.model.ready;
   check('weapon preview loads the same selected arm meshes', !!armsPreview.model.armsRoot && armsPreview.model.armsRoot.getObjectByName('player:BodyMesh').visible === false);
   launch('level'); await wait(100);
+
+  /* ---- project check: broken references before Play ---- */
+  launch('level'); await wait(150);
+  /* The footer indicator is the rule "visible exactly while an error or a
+     warning exists"; notes (unused clips) belong to the report only. */
+  const issueCounts = () => window.__forge.issues.reduce((totals, issue) => ({ ...totals, [issue.severity]: (totals[issue.severity] || 0) + 1 }), {});
+  const indicatorMatchesRule = () => {
+    const badge = document.querySelector('.footer-check'), counts = issueCounts();
+    const expected = (counts.error || 0) + (counts.warning || 0) === 0;
+    return badge.hidden === expected && (expected || /error|warning/.test(badge.textContent));
+  };
+  const cleanReport = window.__forge.issues;
+  // Warnings are legitimate authoring state (this throwaway scene is a TDM
+  // level with no team spawns), so only broken references must be absent here.
+  check('a project with real assets has no broken references', !cleanReport.some(issue => issue.severity === 'error'), JSON.stringify(cleanReport.filter(issue => issue.severity === 'error').slice(0, 4)));
+  check('the footer check indicator follows the errors and warnings it has', indicatorMatchesRule(), JSON.stringify(issueCounts()));
+  const brokenWeapon = store.project.weapons[0];
+  store.change('project', project => { project.weapons.find(w => w.id === brokenWeapon.id).gunshot = 'src/assets/sound/not-here.mp3'; });
+  await wait(200);
+  const indicator = document.querySelector('.footer-check');
+  check('a broken reference surfaces in the footer instead of only in Play', !indicator.hidden && /1 error/.test(indicator.textContent), `${indicator.textContent} · ${indicator.className}`);
+  await openMenu('File');
+  check('the File menu offers the project check', menuLabels().includes('Check project…'), menuLabels().join(' / '));
+  await click(find('.context-menu button', 'Check project…'), 'open the project check');
+  const checkOpen = await until(() => !!document.querySelector('.check-dialog'));
+  const reportText = document.querySelector('.check-dialog')?.textContent || '';
+  check('the report names the missing asset and the owning area', checkOpen && /not-here\.mp3/.test(reportText) && /Weapon/.test(reportText), reportText.slice(0, 140));
+  check('the report states that nothing was changed', /Nothing is changed/.test(reportText));
+  await click(find('.check-dialog .issue-row button', 'Show'), 'show the weapon holding the broken reference');
+  await wait(250);
+  check('a reported problem jumps to the workspace that owns it', /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''), document.querySelector('.workspace-title')?.textContent);
+  await window.__forge.playProject();
+  await wait(250);
+  check('Play reports broken references instead of booting a broken preview', !!document.querySelector('.check-dialog') && !store.playing);
+  check('the report offers Play anyway without blocking the author', !!find('.check-dialog button', 'Play anyway'));
+  await click(find('.check-dialog button', 'Check again'), 'check again');
+  await wait(150);
+  check('re-checking keeps the report while the reference is still broken', !!document.querySelector('.check-dialog .issue-row.error'));
+  await click(find('.check-dialog button', 'Close'), 'close the project check');
+  await wait(120);
+  check('closing the report leaves the editor responsive', !document.querySelector('.check-dialog') && !store.busy);
+  store.undo('project'); await wait(220);
+  check('fixing the reference clears the footer indicator', indicatorMatchesRule() && !window.__forge.issues.some(issue => issue.severity === 'error'), JSON.stringify(window.__forge.issues));
+
+  /* ---- quick open (Ctrl+K) ---- */
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
+  const paletteUp = await until(() => !document.querySelector('.palette-scrim').hidden);
+  const paletteInput = document.querySelector('.palette-input');
+  check('Ctrl+K opens quick open and focuses its search field', paletteUp && document.activeElement === paletteInput, String(document.activeElement?.className));
+  const paletteLabels = () => [...document.querySelectorAll('.palette-item .palette-label')].map(el => el.textContent);
+  // Guarded so a palette that failed to open reports its checks instead of
+  // throwing and hiding the rest of the suite.
+  const searchPalette = async value => {
+    if (!paletteInput) return false;
+    paletteInput.value = value; paletteInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(120); return true;
+  };
+  const paletteKey = key => paletteInput?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  await searchPalette('weapon');
+  check('quick open offers the matching workspace first', paletteLabels()[0] === 'Weapons', paletteLabels().join(' / '));
+  await searchPalette(brokenWeapon.name);
+  check('quick open finds authored documents by name', paletteLabels().includes(brokenWeapon.name), paletteLabels().join(' / '));
+  paletteKey('Enter');
+  await wait(300);
+  check('Enter runs the highlighted entry and closes quick open', document.querySelector('.palette-scrim').hidden && /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''));
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
+  await until(() => !document.querySelector('.palette-scrim').hidden);
+  paletteKey('Escape');
+  await wait(150);
+  check('Escape closes quick open without changing the workspace', document.querySelector('.palette-scrim').hidden && /WEAPONS/.test(document.querySelector('.workspace aside.panel')?.textContent || ''));
+  launch('level'); await wait(150);
 
   /* ---- save whole project ---- */
   await click(find('.top-actions button', 'Save'), 'save');
