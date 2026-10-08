@@ -2,6 +2,8 @@
 
 FPS authoring app built on Three.js, Rapier, Howler, Vite and Electron. Vanilla JavaScript modules; game content is JSON, not executable scripts.
 
+Step-by-step user guide: [docs/README.md](../docs/README.md) — installation, each workspace in turn, playtesting, shipping, engine updates and troubleshooting. This file stays the dense feature reference; the guide is what an author reads first.
+
 ## Run and verify
 
 ```bash
@@ -30,6 +32,8 @@ Forge starts **maximized on Home**, a dedicated project launcher with Open/New a
 - Top (editor only): document tabs, Save, Undo/Redo, scene commands, Play/Stop, Build installer.
 - App header: File/Edit/Window menus, the open workspace name, Forge icon + RGE wordmark, Projects and Settings.
 
+**Ctrl+K** opens quick open: one search over the editing workspaces, every authored scene/weapon/clip/UI screen and the global commands (Save, Play, Check project, New scene, Settings, Build). Arrow keys choose, Enter runs the highlighted entry, Escape or Ctrl+K closes it. It is a search overlay, not a dialog: it never changes project data on its own.
+
 Drag the side separators or the bottom separator to resize panels. Focus a separator and use arrow keys for keyboard resizing. The Assets dock is a conventional **file browser**: a folder tree on the left (a **Project** root holding **Forge documents** — Scenes/Animations/Weapons/UI — beside the real `src/assets` tree, unfolded along the open branch), and on the right an Up button, clickable breadcrumbs and a file list with **Name / Type / Size** columns, folders first and sorted. Double-click a folder to enter it or a file to hand it to the open workspace; right-click a row for Open, Set as entry scene or Open file location. The dock opens on the project asset tree (`src/assets`); search filters the open folder. Console retains the latest 500 messages, including build output and runtime failures.
 
 ## Projects and saving
@@ -39,6 +43,8 @@ Drag the side separators or the bottom separator to resize panels. Focus a separ
 Create picks a parent folder and creates a new named game folder. It refuses any existing destination. Each project has its own package manifest, version, persistent build identity, saved `arena` starter scene, and menu title. The installed game template preserves build dependencies separately from Electron's stripped app manifest.
 
 Opening a project loads its authoritative documents (or legacy JSON) **and its own entry scene**. Incomplete folders offer repair. Repair recursively copies absent files without overwriting authored files. Switching through any editor entry route warns about unsaved work and is blocked while Save, Play preparation, or Build runs.
+
+**Check project…** (File menu, quick open, or the footer indicator) reviews the references the editor can verify without running the game: project assets named by weapons, the player rig, UI images/fonts, scene sounds and models, prefabs and the installer icon; weapon/player clip references and kinds; trigger sound IDs; the entry scene; and scene setup (lights, geometry, mode objectives, team spawns and bots). Problems that would break Play or Build are **errors**, unfinished setup is a **warning**, unused clips are **notes**, and every row can jump to the workspace that owns it. Nothing is repaired automatically. Play runs the same check first and offers **Play anyway** instead of booting a project with known errors; the footer keeps a count while a problem remains. Only project-relative `src/assets/...` paths are judged — URLs, data URLs and public files are left alone because the editor does not author them.
 
 Save / Ctrl+S writes authoring and generated runtime content:
 

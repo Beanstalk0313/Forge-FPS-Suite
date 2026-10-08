@@ -70,7 +70,7 @@ button.primary {background:var(--mint);color:#0b2721;font-weight:700;}button.dan
 .update-notice {display:flex;align-items:center;gap:12px;background:var(--panel);border-bottom:1px solid var(--mint);padding:10px 16px;font-size:12px;}
 .update-notice span {flex:1;}
 .update-notice button {font-size:11px;padding:5px 9px;}
-dialog.settings-dialog,dialog.engine-dialog {position:fixed;inset:0;margin:auto;color:var(--app-text);background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(760px,90vw);max-height:85vh;overflow:auto;padding:26px;box-shadow:0 25px 100px #0009;}
+dialog.settings-dialog,dialog.engine-dialog,dialog.check-dialog {position:fixed;inset:0;margin:auto;color:var(--app-text);background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(760px,90vw);max-height:85vh;overflow:auto;padding:26px;box-shadow:0 25px 100px #0009;}
 dialog::backdrop {background:#03070cc9;backdrop-filter:blur(4px);}
 dialog header {display:flex;align-items:center;gap:16px;}dialog header h2 {font-size:20px;margin:0;}
 .engine-dialog p {font-size:13px;line-height:1.7;}.safety-note {padding:16px;border:1px solid #77e4c140;background:#77e4c10c;border-radius:8px;}
@@ -221,3 +221,38 @@ button:disabled {opacity:.45;cursor:default;}
 .timeline {height:clamp(190px,29vh,300px);}.tl-labelcol {width:190px;}.tl-rowlabel {height:30px;}.tl-strip {height:30px;}
 .ui-align-grid {display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:10px 0;}.ui-align-grid button {font-size:10px;padding:7px 3px;}
 @media(max-height:850px) {.timeline {height:190px;}.stage-hint {padding:5px;}.viewport-toolbar {padding:7px;}.viewport {min-height:120px;}.bottom-dock {height:155px;}}
+
+/* ---- Quick open (Ctrl+K) -------------------------------------------
+   A search overlay over the workspaces, authored documents and global
+   commands. Not a native dialog: the editor stays interactive behind it and
+   the search field keeps focus so Arrow/Enter never leave the list. */
+.palette-scrim {position:fixed;inset:0;z-index:210;background:#040810b8;backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:flex-start;padding:11vh 20px 20px;}
+.palette-scrim[hidden] {display:none;}
+.palette-panel {display:flex;flex-direction:column;width:min(640px,100%);max-height:64vh;background:#101b28;border:1px solid #3b5568;border-radius:10px;box-shadow:0 30px 90px #000c;overflow:hidden;}
+.palette-input {border:0;border-bottom:1px solid var(--line);border-radius:0;background:#0d1622;color:#eef4fc;padding:14px 16px;font-size:14px;}
+.palette-input:focus-visible {outline:0;border-bottom-color:var(--mint);}
+.palette-list {overflow:auto;padding:6px;}
+.palette-item {display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:transparent;padding:9px 11px;font-size:12px;border-radius:6px;}
+.palette-item.active {background:#1f3a3a;color:#9af2d8;border-color:transparent;}
+.palette-label {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.palette-hint {flex-shrink:0;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:#7f93a8;}
+.palette-empty {margin:0;padding:14px;color:var(--muted);font-size:12px;}
+
+/* ---- Project check report ------------------------------------------
+   Every reference the editor can verify, grouped by how much it hurts. */
+.footer-check {font-size:10.5px;padding:3px 9px;border-color:#3c5a6d;color:#a9c8da;}
+.footer-check.error {border-color:#8a4a3c;color:#ffb4a8;background:#2a1a16;}
+.check-body {margin-top:6px;}
+.check-summary {display:flex;align-items:center;gap:10px;margin:8px 0 4px;}
+.check-counts {font-size:11px;color:#8fb0c4;}
+.check-clear {margin:10px 0;padding:16px;border:1px solid #2f7f68;border-radius:8px;background:#14292a;color:#b8ffe9;font-size:12.5px;line-height:1.6;}
+.issue-row {display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.issue-row .issue-message {flex:1;min-width:0;line-height:1.55;overflow-wrap:anywhere;}
+.issue-row .badge {flex-shrink:0;}
+.issue-row button {flex-shrink:0;font-size:10.5px;padding:4px 10px;}
+.issue-row.error .issue-message {color:#ffc0b6;}
+.issue-row.warning .issue-message {color:#f2d49a;}
+.issue-row.info .issue-message {color:#9fb2c8;}
+.check-actions {display:flex;align-items:center;gap:12px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
+.check-actions .muted {flex:1;font-size:11px;}
+.check-dialog h3 {margin:20px 0 4px;}
